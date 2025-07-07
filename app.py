@@ -1,0 +1,124 @@
+import os
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+from flask import Flask, request, render_template, flash, redirect, url_for
+from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+from transaction_processor import process_transactions
+
+app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "supersecretkey") # Replace with a strong secret key
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload size
+
+# Ensure the upload folder exists
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
+# Email configuration from environment variables
+SMTP_SERVER = os.getenv("SMTP_SERVER")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587)) # Default to 587 for TLS
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        flash('No file part', 'error')
+        return redirect(request.url)
+
+    file = request.files['file']
+    email = request.form.get('email')
+
+    if file.filename == '':
+        flash('No selected file', 'error')
+        return redirect(request.url)
+
+    if not email:
+        flash('Email is required', 'error')
+        return redirect(request.url)
+
+    if file and file.filename.endswith('.csv'):
+        filename = secure_filename(file.filename)
+        input_filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(input_filepath)
+
+        try:
+            # Define output path for the processed file
+            output_filename = "categorized_" + filename
+            output_filepath = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+
+            # Process the transactions
+            processed_file_path = process_transactions(input_filepath, output_filepath)
+
+            # Send email with the processed file
+            send_email(
+                recipient_email=email,
+                subject="Your Categorized Transactions Report",
+                body="Please find your categorized transactions report attached.",
+                attachment_path=processed_file_path
+            )
+
+            flash('File successfully uploaded, processed, and report sent to your email!', 'success')
+        except Exception as e:
+            flash(f'An error occurred during processing or sending email: {e}', 'error')
+        finally:
+            # Clean up uploaded files
+            if os.path.exists(input_filepath):
+                os.remove(input_filepath)
+            if os.path.exists(output_filepath):
+                os.remove(output_filepath)
+
+        return redirect(url_for('index'))
+    else:
+        flash('Invalid file type. Please upload a CSV file.', 'error')
+        return redirect(request.url)
+
+def send_email(recipient_email, subject, body, attachment_path=None):
+    if not all([SMTP_SERVER, SMTP_PORT, EMAIL_ADDRESS, EMAIL_PASSWORD]):
+        raise ValueError("Email configuration is incomplete. Please set SMTP_SERVER, SMTP_PORT, EMAIL_ADDRESS, and EMAIL_PASSWORD environment variables.")
+
+    msg = MIMEMultipart()
+    msg['From'] = EMAIL_ADDRESS
+    msg['To'] = recipient_email
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(body, 'plain'))
+
+    if attachment_path and os.path.exists(attachment_path):
+        try:
+            with open(attachment_path, "rb") as attachment:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header(
+                'Content-Disposition',
+                f"attachment; filename= {os.path.basename(attachment_path)}",
+            )
+            msg.attach(part)
+        except Exception as e:
+            print(f"Error attaching file {attachment_path}: {e}")
+            # Decide if you want to re-raise or just log and continue without attachment
+
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()  # Secure the connection
+            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            server.send_message(msg)
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        raise # Re-raise the exception to be caught by the Flask route
+
+if __name__ == '__main__':
+    app.run(debug=True)
