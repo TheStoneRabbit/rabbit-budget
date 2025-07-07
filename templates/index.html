@@ -200,6 +200,20 @@
         </div>
     </div>
 
+    <div class="container">
+        <h2 class="collapsible-header" data-target="rules-content">Manage Category Rules <span class="collapse-icon">&#9660;</span></h2>
+        <div id="rules-content" class="collapsible-content">
+            <input type="text" id="rule-search" placeholder="Search rules...">
+            <form id="rules-form">
+                <div id="rules-container">
+                    <!-- Rules will be loaded here by JavaScript -->
+                </div>
+                <button type="button" id="add-rule">Add Rule</button>
+                <button type="button" id="save-rules">Save Rules</button>
+            </form>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Collapsible Headers
