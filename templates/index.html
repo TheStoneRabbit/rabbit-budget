@@ -29,12 +29,40 @@
             color: #555;
         }
         input[type="file"],
-        input[type="email"] {
+        input[type="email"],
+        input[type="text"],
+        input[type="number"] {
             width: calc(100% - 22px);
             padding: 10px;
             margin-bottom: 20px;
             border: 1px solid #ddd;
             border-radius: 4px;
+            box-sizing: border-box; /* Ensure padding doesn't increase width */
+        }
+
+        /* Modern Search Bar Styling */
+        #category-search,
+        #rule-search {
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 20px;
+            border: 1px solid #a0a0a0;
+            border-radius: 25px; /* More rounded corners */
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        #category-search:focus,
+        #rule-search:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+        }
+
+        #category-search::placeholder,
+        #rule-search::placeholder {
+            color: #888;
         }
         input[type="submit"] {
             background-color: #007bff;
