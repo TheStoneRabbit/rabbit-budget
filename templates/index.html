@@ -29,9 +29,7 @@
             color: #555;
         }
         input[type="file"],
-        input[type="email"],
-        input[type="text"],
-        input[type="number"] {
+        input[type="email"] {
             width: calc(100% - 22px);
             padding: 10px;
             margin-bottom: 20px;
@@ -92,6 +90,39 @@
             background-color: #f8d7da;
             color: #721c24;
             border-color: #f5c6cb;
+        }
+
+        /* Styling for category and rule items */
+        .category-item,
+        .rule-item {
+            display: flex;
+            align-items: center;
+            gap: 10px; /* Space between items */
+            margin-bottom: 10px;
+        }
+
+        .category-item input[type="text"],
+        .category-item input[type="number"],
+        .rule-item input[type="text"] {
+            flex: 1; /* Allow inputs to grow and shrink */
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .category-item button,
+        .rule-item button {
+            padding: 8px 12px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .category-item button:hover,
+        .rule-item button:hover {
+            background-color: #c82333;
         }
     </style>
 </head>
