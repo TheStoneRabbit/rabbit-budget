@@ -27,6 +27,7 @@ def clean_description(desc):
     desc = re.sub(r'null', '', desc, flags=re.IGNORECASE)
     desc = re.sub(r'\d+', '', desc)  # remove numbers
     desc = re.sub(r'\s+', ' ', desc).strip()
+    desc = desc.replace('\xa0', ' ') # Replace non-breaking space with regular space
     return desc
 
 def clean_citi_csv(input_file):
