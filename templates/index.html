@@ -126,6 +126,8 @@
         document.getElementById('save-categories').addEventListener('click', function() {
             document.getElementById('category-form').dispatchEvent(new Event('submit', { cancelable: true }));
         });
+
+        document.getElementById('category-form').addEventListener('submit', function(e) {
             e.preventDefault();
             const categories = [];
             document.querySelectorAll('.category-item').forEach(item => {
