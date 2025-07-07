@@ -75,6 +75,40 @@
         input[type="submit"]:hover {
             background-color: #0056b3;
         }
+
+        /* Styling for Add and Save buttons */
+        #add-category,
+        #add-rule {
+            background-color: #007bff; /* Blue */
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+
+        #add-category:hover,
+        #add-rule:hover {
+            background-color: #0056b3;
+        }
+
+        #save-categories,
+        #save-rules {
+            background-color: #28a745; /* Green */
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        #save-categories:hover,
+        #save-rules:hover {
+            background-color: #218838;
+        }
         .message {
             margin-top: 20px;
             padding: 10px;
@@ -224,7 +258,7 @@
                     <!-- Rules will be loaded here by JavaScript -->
                 </div>
                 <button type="button" id="add-rule">Add Rule</button>
-                <button type="submit">Save Rules</button>
+                <button type="button" id="save-rules">Save Rules</button>
             </form>
         </div>
     </div>
@@ -316,7 +350,9 @@
             }
         });
 
-        document.getElementById('rules-form').addEventListener('submit', function(e) {
+        document.getElementById('save-rules').addEventListener('click', function() {
+            document.getElementById('rules-form').dispatchEvent(new Event('submit', { cancelable: true }));
+        });
             e.preventDefault();
             const rules = {};
             document.querySelectorAll('.rule-item').forEach(item => {
