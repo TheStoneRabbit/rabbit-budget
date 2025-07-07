@@ -126,8 +126,6 @@ def send_email(recipient_email, subject, body, attachment_path=None):
     msg['Subject'] = Header(subject, 'utf-8')
 
     msg.attach(MIMEText(body, _charset="utf-8"))
-    print(f"DEBUG: Email body content (first 100 chars): {body[:100].encode('ascii', 'replace')}")
-
     if attachment_path and os.path.exists(attachment_path):
         try:
             with open(attachment_path, "rb") as attachment:
@@ -147,8 +145,6 @@ def send_email(recipient_email, subject, body, attachment_path=None):
     try:
         # Convert the message to a string with UTF-8 encoding
         email_content = msg.as_bytes()
-        print(f"DEBUG: Full email content (first 200 chars): {email_content[:200].encode('ascii', 'replace')}")
-
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()  # Secure the connection
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
