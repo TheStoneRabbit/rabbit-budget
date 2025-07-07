@@ -5,7 +5,7 @@ import re
 import time
 import tkinter as tk
 from tkinter import filedialog
-
+import json
 
 # === CONFIG ===
 categories = [
@@ -21,28 +21,13 @@ categories = [
     ("Going Out", 500.00),
     ("Gifts", 100.00),
     ("Uncategorized", 0.00),
+    ("Discretionary", 0.00),
+    ("Subscription", 100.00),
 ]
+with open("category_rules.json", "r") as f:
+    CATEGORY_RULES = json.load(f)
 
-CATEGORY_RULES = {
-    "MCDONALD": "Eating Out",
-    "DOORDASH": "Eating Out",
-    "CHIPOTLE": "Eating Out",
-    "BURGER": "Eating Out",
-    "STARBUCKS": "Eating Out",
-    "SUPERCENTER": "Groceries",
-    "WAL-MART": "Groceries",
-    "WHOLEFDS": "Groceries",
-    "TURNIP TRUCK": "Groceries",
-    "SHELL": "Gas",
-    "GREEN CHEF": "Groceries",
-    "LIQUOR": "Groceries",
-    "BONNAROO": "Fun",
-    "RENT": "Rent",
-    "FIBER": "Utilities",
-    "AMAZON": "Uncategorized",
-    "MARQ": "Rent",
-}
-
+uncategorized = []
 # === CLEANING ===
 def clean_description(desc):
     if pd.isnull(desc):
@@ -103,7 +88,6 @@ def categorize_fallback(description):
     for keyword, category in CATEGORY_RULES.items():
         if keyword in description.upper():
             return category
-
     # Fallback to GPT
     fallback_prompt = f"""Which category from this list best fits the transaction.
     There should only be one transaction categorized into the 'Rent' Category.
@@ -120,17 +104,35 @@ def categorize_fallback(description):
 
 def assign_categories_to_df(filepath):
     df = pd.read_csv(filepath)
-    categories = []
+    assigned_categories = []
+
+    # Load a local copy of the rules to update
+    with open("category_rules.json", "r") as f:
+        updated_rules = json.load(f)
 
     for i, row in df.iterrows():
         desc = row["Description"]
         print(f"🗂️ Categorizing [{i+1}/{len(df)}]: {desc}")
+        # categorize_fallback will use the global CATEGORY_RULES, which is not modified during the loop
         category = categorize_fallback(desc)
-        categories.append(category)
+
+        if category == "Uncategorized":
+            print(f"🕵️ Found uncategorized: {desc}. Adding to rules for future runs.")
+            # Use upper() to be consistent with how keywords are checked.
+            updated_rules[desc.upper()] = "NEEDS CATEGORY"
+
+        assigned_categories.append(category)
         time.sleep(1)  # prevent hammering GPT API
 
-    df["Category"] = categories
+    df["Category"] = assigned_categories
+
+    # Save the updated rules back to the file
+    with open("category_rules.json", "w") as f:
+        json.dump(updated_rules, f, indent=4)
+
     return df
+
+
 # === MAIN ===
 if __name__ == "__main__":
     input_path = open_file_dialog()
