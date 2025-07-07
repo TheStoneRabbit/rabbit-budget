@@ -201,119 +201,109 @@
     </div>
 
     <script>
-        document.getElementById('add-category').addEventListener('click', function() {
-            const container = document.getElementById('categories-container');
-            const newItem = document.createElement('div');
-            newItem.classList.add('category-item');
-            newItem.innerHTML = `
-                <input type="text" name="category-name" placeholder="Category Name" required>
-                <input type="number" name="category-budget" placeholder="Budget" step="0.01" required>
-                <button type="button" class="remove-category">Remove</button>
-            `;
-            container.appendChild(newItem);
-        });
-
-        document.getElementById('categories-container').addEventListener('click', function(e) {
-            if (e.target.classList.contains('remove-category')) {
-                e.target.parentElement.remove();
-            }
-        });
-
-        document.getElementById('save-categories').addEventListener('click', function() {
-            document.getElementById('category-form').dispatchEvent(new Event('submit', { cancelable: true }));
-        });
-
-        document.getElementById('category-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const categories = [];
-            document.querySelectorAll('.category-item').forEach(item => {
-                const name = item.querySelector('input[name="category-name"]').value;
-                const budget = parseFloat(item.querySelector('input[name="category-budget"]').value);
-                if (name && !isNaN(budget)) {
-                    categories.push({ name, budget });
-                }
-            });
-
-            fetch('/categories', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(categories)
-            }).then(response => {
-                if (response.ok) {
-                    alert('Categories saved successfully!');
-                } else {
-                    alert('Error saving categories.');
-                }
-            });
-        });
-    </script>
-    <div class="container">
-        <h2 class="collapsible-header" data-target="rules-content">Manage Category Rules <span class="collapse-icon">&#9660;</span></h2>
-        <div id="rules-content" class="collapsible-content">
-            <input type="text" id="rule-search" placeholder="Search rules...">
-            <form id="rules-form">
-                <div id="rules-container">
-                    <!-- Rules will be loaded here by JavaScript -->
-                </div>
-                <button type="button" id="add-rule">Add Rule</button>
-                <button type="button" id="save-rules">Save Rules</button>
-            </form>
-        </div>
-    </div>
-
-    <script>
-        document.getElementById('category-search').addEventListener('keyup', function() {
-            const searchTerm = this.value.toLowerCase();
-            document.querySelectorAll('#categories-container .category-item').forEach(item => {
-                const categoryName = item.querySelector('input[name="category-name"]').value.toLowerCase();
-                if (categoryName.includes(searchTerm)) {
-                    item.style.display = 'flex';
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-        });
-
-        document.querySelectorAll('.collapsible-header').forEach(header => {
-            header.addEventListener('click', function() {
-                const targetId = this.dataset.target;
-                const targetContent = document.getElementById(targetId);
-                const icon = this.querySelector('.collapse-icon');
-
-                if (targetContent.style.display === 'none') {
-                    targetContent.style.display = 'block';
-                    icon.innerHTML = '&#9660;'; // Down arrow
-                } else {
-                    targetContent.style.display = 'none';
-                    icon.innerHTML = '&#9658;'; // Right arrow
-                }
-            });
-        });
-
-        // Initial collapse state
-        document.querySelectorAll('.collapsible-content').forEach(content => {
-            content.style.display = 'block'; // Start open
-        });
-
-        // ... existing script ...
-
-        document.getElementById('rule-search').addEventListener('keyup', function() {
-            const searchTerm = this.value.toLowerCase();
-            document.querySelectorAll('#rules-container .rule-item').forEach(item => {
-                const keyword = item.querySelector('input[name="rule-keyword"]').value.toLowerCase();
-                const category = item.querySelector('input[name="rule-category"]').value.toLowerCase();
-                if (keyword.includes(searchTerm) || category.includes(searchTerm)) {
-                    item.style.display = 'flex';
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-        });
-
-        // Rules Editor
         document.addEventListener('DOMContentLoaded', function() {
+            // Collapsible Headers
+            document.querySelectorAll('.collapsible-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    const targetId = this.dataset.target;
+                    const targetContent = document.getElementById(targetId);
+                    const icon = this.querySelector('.collapse-icon');
+
+                    if (targetContent.style.display === 'none') {
+                        targetContent.style.display = 'block';
+                        icon.innerHTML = '&#9660;'; // Down arrow
+                    } else {
+                        targetContent.style.display = 'none';
+                        icon.innerHTML = '&#9658;'; // Right arrow
+                    }
+                });
+            });
+
+            // Initial collapse state (all open by default)
+            document.querySelectorAll('.collapsible-content').forEach(content => {
+                content.style.display = 'block'; // Start open
+            });
+
+            // Category Search
+            document.getElementById('category-search').addEventListener('keyup', function() {
+                const searchTerm = this.value.toLowerCase();
+                document.querySelectorAll('#categories-container .category-item').forEach(item => {
+                    const categoryName = item.querySelector('input[name="category-name"]').value.toLowerCase();
+                    if (categoryName.includes(searchTerm)) {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+
+            // Add Category Button
+            document.getElementById('add-category').addEventListener('click', function() {
+                const container = document.getElementById('categories-container');
+                const newItem = document.createElement('div');
+                newItem.classList.add('category-item');
+                newItem.innerHTML = `
+                    <input type="text" name="category-name" placeholder="Category Name" required>
+                    <input type="number" name="category-budget" placeholder="Budget" step="0.01" required>
+                    <button type="button" class="remove-category">Remove</button>
+                `;
+                container.appendChild(newItem);
+            });
+
+            // Remove Category Button
+            document.getElementById('categories-container').addEventListener('click', function(e) {
+                if (e.target.classList.contains('remove-category')) {
+                    e.target.parentElement.remove();
+                }
+            });
+
+            // Save Categories Button
+            document.getElementById('save-categories').addEventListener('click', function() {
+                document.getElementById('category-form').dispatchEvent(new Event('submit', { cancelable: true }));
+            });
+
+            // Category Form Submission
+            document.getElementById('category-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const categories = [];
+                document.querySelectorAll('.category-item').forEach(item => {
+                    const name = item.querySelector('input[name="category-name"]').value;
+                    const budget = parseFloat(item.querySelector('input[name="category-budget"]').value);
+                    if (name && !isNaN(budget)) {
+                        categories.push({ name, budget });
+                    }
+                });
+
+                fetch('/categories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(categories)
+                }).then(response => {
+                    if (response.ok) {
+                        alert('Categories saved successfully!');
+                    } else {
+                        alert('Error saving categories.');
+                    }
+                });
+            });
+
+            // Rule Search
+            document.getElementById('rule-search').addEventListener('keyup', function() {
+                const searchTerm = this.value.toLowerCase();
+                document.querySelectorAll('#rules-container .rule-item').forEach(item => {
+                    const keyword = item.querySelector('input[name="rule-keyword"]').value.toLowerCase();
+                    const category = item.querySelector('input[name="rule-category"]').value.toLowerCase();
+                    if (keyword.includes(searchTerm) || category.includes(searchTerm)) {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+
+            // Rules Editor - Load Rules
             fetch('/rules')
                 .then(response => response.json())
                 .then(rules => {
@@ -330,51 +320,57 @@
                         container.appendChild(newItem);
                     }
                 });
-        });
 
-        document.getElementById('add-rule').addEventListener('click', function() {
-            const container = document.getElementById('rules-container');
-            const newItem = document.createElement('div');
-            newItem.classList.add('rule-item');
-            newItem.innerHTML = `
-                <input type="text" name="rule-keyword" placeholder="Keyword" required>
-                <input type="text" name="rule-category" placeholder="Category" required>
-                <button type="button" class="remove-rule">Remove</button>
-            `;
-            container.appendChild(newItem);
-        });
+            // Add Rule Button
+            document.getElementById('add-rule').addEventListener('click', function() {
+                const container = document.getElementById('rules-container');
+                const newItem = document.createElement('div');
+                newItem.classList.add('rule-item');
+                newItem.innerHTML = `
+                    <input type="text" name="rule-keyword" placeholder="Keyword" required>
+                    <input type="text" name="rule-category" placeholder="Category" required>
+                    <button type="button" class="remove-rule">Remove</button>
+                `;
+                container.appendChild(newItem);
+            });
 
-        document.getElementById('rules-container').addEventListener('click', function(e) {
-            if (e.target.classList.contains('remove-rule')) {
-                e.target.parentElement.remove();
-            }
-        });
-
-        document.getElementById('save-rules').addEventListener('click', function() {
-            document.getElementById('rules-form').dispatchEvent(new Event('submit', { cancelable: true }));
-        });
-            e.preventDefault();
-            const rules = {};
-            document.querySelectorAll('.rule-item').forEach(item => {
-                const keyword = item.querySelector('input[name="rule-keyword"]').value;
-                const category = item.querySelector('input[name="rule-category"]').value;
-                if (keyword && category) {
-                    rules[keyword] = category;
+            // Remove Rule Button
+            document.getElementById('rules-container').addEventListener('click', function(e) {
+                if (e.target.classList.contains('remove-rule')) {
+                    e.target.parentElement.remove();
                 }
             });
 
-            fetch('/rules', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(rules)
-            }).then(response => {
-                if (response.ok) {
-                    alert('Rules saved successfully!');
-                } else {
-                    alert('Error saving rules.');
-                }
+            // Save Rules Button
+            document.getElementById('save-rules').addEventListener('click', function() {
+                document.getElementById('rules-form').dispatchEvent(new Event('submit', { cancelable: true }));
+            });
+
+            // Rules Form Submission
+            document.getElementById('rules-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const rules = {};
+                document.querySelectorAll('.rule-item').forEach(item => {
+                    const keyword = item.querySelector('input[name="rule-keyword"]').value;
+                    const category = item.querySelector('input[name="rule-category"]').value;
+                    if (keyword && category) {
+                        rules[keyword] = category;
+                    }
+                });
+
+                fetch('/rules', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(rules)
+                }).then(response => {
+                    if (response.ok) {
+                        alert('Rules saved successfully!');
+                    } else {
+                        alert('Error saving rules.');
+                    }
+                });
             });
         });
     </script>
