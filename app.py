@@ -60,7 +60,7 @@ def upload_file():
         flash('Email is required', 'error')
         return redirect(url_for('index'))
 
-    if file and file.filename.endswith('.csv'):
+    if file and file.filename.lower().endswith('.csv'):
         filename = secure_filename(file.filename)
         input_filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(input_filepath)
