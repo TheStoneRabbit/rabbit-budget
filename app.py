@@ -118,14 +118,17 @@ def upload_file():
 
 def send_email(recipient_email, subject, body, attachment_path=None):
     if not all([SMTP_SERVER, SMTP_PORT, EMAIL_ADDRESS, EMAIL_PASSWORD]):
-        raise ValueError("Email configuration is incomplete. Please set SMTP_SERVER, SMTP_PORT, EMAIL_ADDRESS, and EMAIL_PASSWORD environment variables.")
+        raise ValueError("Email configuration is incomplete.")
 
     msg = MIMEMultipart()
-    msg['From'] = EMAIL_ADDRESS
-    msg['To'] = recipient_email
-    msg['Subject'] = Header(subject, 'utf-8')
+    msg['From'] = str(Header(EMAIL_ADDRESS, 'utf-8'))
+    msg['To'] = str(Header(recipient_email, 'utf-8'))
+    msg['Subject'] = str(Header(subject, 'utf-8'))
 
-    msg.attach(MIMEText(body, _charset="utf-8"))
+    # Clean non-breaking spaces just in case
+    body = body.replace('\xa0', ' ')
+    msg.attach(MIMEText(body, _charset='utf-8'))
+
     if attachment_path and os.path.exists(attachment_path):
         try:
             with open(attachment_path, "rb") as attachment:
@@ -135,23 +138,27 @@ def send_email(recipient_email, subject, body, attachment_path=None):
             part.add_header(
                 'Content-Disposition',
                 'attachment',
-                filename=Header("results.csv", 'utf-8').encode()
+                # Don't use Header().encode() – just a plain string is fine
+                filename='results.csv'
             )
             msg.attach(part)
         except Exception as e:
             print(f"Error attaching file {attachment_path}: {e}")
-            # Decide if you want to re-raise or just log and continue without attachment
 
     try:
-        # Convert the message to a string with UTF-8 encoding
         email_content = msg.as_bytes()
+        print("DEBUG: Email is ready to send")
+
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()  # Secure the connection
+            server.starttls()
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             server.sendmail(msg['From'], msg['To'], email_content)
+
     except Exception as e:
-        print(f"Error sending email: {e}")
-        raise # Re-raise the exception to be caught by the Flask route
+        import traceback
+        print("DEBUG: Email send error traceback:")
+        traceback.print_exc()
+        raise
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
