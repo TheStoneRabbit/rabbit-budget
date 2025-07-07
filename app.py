@@ -134,10 +134,11 @@ def send_email(recipient_email, subject, body, attachment_path=None):
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(attachment.read())
             encoders.encode_base64(part)
+            cleaned_filename = os.path.basename(attachment_path).replace('\xa0', ' ')
             part.add_header(
                 'Content-Disposition',
                 'attachment',
-                filename=(Header(os.path.basename(attachment_path), 'utf-8').encode())
+                filename=Header(cleaned_filename, 'utf-8').encode()
             )
             msg.attach(part)
         except Exception as e:
