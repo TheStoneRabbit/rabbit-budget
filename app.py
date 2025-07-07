@@ -13,6 +13,8 @@ load_dotenv()
 
 from transaction_processor import process_transactions
 
+import json
+
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "supersecretkey") # Replace with a strong secret key
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -30,7 +32,16 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    with open('categories.json', 'r') as f:
+        categories = json.load(f)
+    return render_template('index.html', categories=categories)
+
+@app.route('/categories', methods=['POST'])
+def update_categories():
+    new_categories = request.get_json()
+    with open('categories.json', 'w') as f:
+        json.dump(new_categories, f, indent=4)
+    return 'Categories updated successfully', 200
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -121,4 +132,4 @@ def send_email(recipient_email, subject, body, attachment_path=None):
         raise # Re-raise the exception to be caught by the Flask route
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')

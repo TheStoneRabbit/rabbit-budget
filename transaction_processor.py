@@ -6,22 +6,15 @@ import time
 import json
 
 # === CONFIG ===
-categories = [
-    ("Eating Out", 500.00),
-    ("Groceries", 500.00),
-    ("Rent", 1900.00),
-    ("Public Transportation", 100.00),
-    ("Repairs", 0.00),
-    ("Gas", 50.00),
-    ("Doctor's Office", 0.00),
-    ("Prescriptions", 200.00),
-    ("Fun", 600.00),
-    ("Going Out", 500.00),
-    ("Gifts", 100.00),
-    ("Uncategorized", 0.00),
-    ("Discretionary", 0.00),
-    ("Subscription", 100.00),
-]
+def load_categories():
+    with open("categories.json", "r") as f:
+        return json.load(f)
+
+def get_category_tuples():
+    categories_data = load_categories()
+    return [(category['name'], category['budget']) for category in categories_data]
+
+categories = get_category_tuples()
 with open("category_rules.json", "r") as f:
     CATEGORY_RULES = json.load(f)
 
@@ -63,7 +56,7 @@ def query_chatgpt(prompt):
 
 
 # === CATEGORIZATION ===
-def categorize_fallback(description):
+def categorize_fallback(description, categories):
     for keyword, category in CATEGORY_RULES.items():
         if keyword in description.upper():
             return category
@@ -84,6 +77,7 @@ def categorize_fallback(description):
 def assign_categories_to_df(filepath):
     df = pd.read_csv(filepath)
     assigned_categories = []
+    categories = get_category_tuples()
 
     # Load a local copy of the rules to update
     with open("category_rules.json", "r") as f:
@@ -91,12 +85,12 @@ def assign_categories_to_df(filepath):
 
     for i, row in df.iterrows():
         desc = row["Description"]
-        print(f"🗂️ Categorizing [{i+1}/{len(df)}]: {desc}")
+        print(f"\U0001f5f2\ufe0f Categorizing [{i+1}/{len(df)}]: {desc}")
         # categorize_fallback will use the global CATEGORY_RULES, which is not modified during the loop
-        category = categorize_fallback(desc)
+        category = categorize_fallback(desc, categories)
 
         if category == "Uncategorized":
-            print(f"🕵️ Found uncategorized: {desc}. Adding to rules for future runs.")
+            print(f"\U0001f575\ufe0f Found uncategorized: {desc}. Adding to rules for future runs.")
             # Use upper() to be consistent with how keywords are checked.
             updated_rules[desc.upper()] = "NEEDS CATEGORY"
 
