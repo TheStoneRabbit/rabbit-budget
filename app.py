@@ -136,7 +136,8 @@ def send_email(recipient_email, subject, body, attachment_path=None):
             encoders.encode_base64(part)
             part.add_header(
                 'Content-Disposition',
-                f"attachment; filename= {os.path.basename(attachment_path)}",
+                'attachment',
+                filename=Header(os.path.basename(attachment_path), 'utf-8').encode()
             )
             msg.attach(part)
         except Exception as e:
