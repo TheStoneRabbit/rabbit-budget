@@ -100,7 +100,7 @@
                 {% endfor %}
             </div>
             <button type="button" id="add-category">Add Category</button>
-            <button type="submit">Save Categories</button>
+            <button type="button" id="save-categories">Save Categories</button>
         </form>
     </div>
 
@@ -123,7 +123,9 @@
             }
         });
 
-        document.getElementById('category-form').addEventListener('submit', function(e) {
+        document.getElementById('save-categories').addEventListener('click', function() {
+            document.getElementById('category-form').dispatchEvent(new Event('submit', { cancelable: true }));
+        });
             e.preventDefault();
             const categories = [];
             document.querySelectorAll('.category-item').forEach(item => {
