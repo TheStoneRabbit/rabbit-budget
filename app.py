@@ -145,10 +145,14 @@ def send_email(recipient_email, subject, body, attachment_path=None):
             # Decide if you want to re-raise or just log and continue without attachment
 
     try:
+        # Convert the message to a string with UTF-8 encoding
+        email_content = msg.as_string()
+        print(f"DEBUG: Full email content (first 200 chars): {email_content[:200].encode('ascii', 'replace')}")
+
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()  # Secure the connection
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            server.send_message(msg)
+            server.sendmail(msg['From'], msg['To'], email_content)
     except Exception as e:
         print(f"Error sending email: {e}")
         raise # Re-raise the exception to be caught by the Flask route
