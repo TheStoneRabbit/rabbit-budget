@@ -35,6 +35,7 @@ def clean_citi_csv(input_file):
     df['Description'] = df['Description'].apply(clean_description)
     df['Amount'] = df['Debit'].astype(float)
     cleaned_df = df[['Description', 'Amount']].copy()
+    cleaned_df = cleaned_df.reset_index(drop=True)
     return cleaned_df
 
 # === GPT SETUP ===

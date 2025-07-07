@@ -126,6 +126,7 @@ def send_email(recipient_email, subject, body, attachment_path=None):
     msg['Subject'] = Header(subject, 'utf-8')
 
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
+    print(f"DEBUG: Email body content (first 100 chars): {body[:100].encode('ascii', 'replace')}")
 
     if attachment_path and os.path.exists(attachment_path):
         try:
