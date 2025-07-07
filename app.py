@@ -4,9 +4,11 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-from flask import Flask, request, render_template, flash, redirect, url_for
+from flask import Flask, request, render_template, flash, redirect, url_for, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+
+import threading
 
 # Load environment variables from .env file
 load_dotenv()
@@ -30,6 +32,29 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", 587)) # Default to 587 for TLS
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
+def process_and_email_task(app, input_filepath, output_filepath, email):
+    with app.app_context():
+        try:
+            # Process the transactions
+            processed_file_path = process_transactions(input_filepath, output_filepath)
+
+            # Send email with the processed file
+            send_email(
+                recipient_email=email,
+                subject="Your Categorized Transactions Report",
+                body="Please find your categorized transactions report attached.",
+                attachment_path=processed_file_path
+            )
+            print(f"Successfully processed and sent email to {email}")
+        except Exception as e:
+            print(f'An error occurred in the background task: {e}')
+        finally:
+            # Clean up uploaded files
+            if os.path.exists(input_filepath):
+                os.remove(input_filepath)
+            if os.path.exists(output_filepath):
+                os.remove(output_filepath)
+
 @app.route('/')
 def index():
     with open('categories.json', 'r') as f:
@@ -42,6 +67,19 @@ def update_categories():
     with open('categories.json', 'w') as f:
         json.dump(new_categories, f, indent=4)
     return 'Categories updated successfully', 200
+
+@app.route('/rules', methods=['GET'])
+def get_rules():
+    with open('category_rules.json', 'r') as f:
+        rules = json.load(f)
+    return jsonify(rules)
+
+@app.route('/rules', methods=['POST'])
+def update_rules():
+    new_rules = request.get_json()
+    with open('category_rules.json', 'w') as f:
+        json.dump(new_rules, f, indent=4)
+    return 'Rules updated successfully', 200
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -63,34 +101,15 @@ def upload_file():
     if file and file.filename.lower().endswith('.csv'):
         filename = secure_filename(file.filename)
         input_filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        output_filename = "categorized_" + filename
+        output_filepath = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
         file.save(input_filepath)
 
-        try:
-            # Define output path for the processed file
-            output_filename = "categorized_" + filename
-            output_filepath = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+        # Run the processing in a background thread
+        thread = threading.Thread(target=process_and_email_task, args=(app, input_filepath, output_filepath, email))
+        thread.start()
 
-            # Process the transactions
-            processed_file_path = process_transactions(input_filepath, output_filepath)
-
-            # Send email with the processed file
-            send_email(
-                recipient_email=email,
-                subject="Your Categorized Transactions Report",
-                body="Please find your categorized transactions report attached.",
-                attachment_path=processed_file_path
-            )
-
-            flash('File successfully uploaded, processed, and report sent to your email!', 'success')
-        except Exception as e:
-            flash(f'An error occurred during processing or sending email: {e}', 'error')
-        finally:
-            # Clean up uploaded files
-            if os.path.exists(input_filepath):
-                os.remove(input_filepath)
-            if os.path.exists(output_filepath):
-                os.remove(output_filepath)
-
+        flash('File successfully uploaded and is being processed. You will receive an email shortly.', 'success')
         return redirect(url_for('index'))
     else:
         flash('Invalid file type. Please upload a CSV file.', 'error')

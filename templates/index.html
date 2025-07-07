@@ -151,5 +151,83 @@
             });
         });
     </script>
+    <div class="container">
+        <h2>Manage Category Rules</h2>
+        <form id="rules-form">
+            <div id="rules-container">
+                <!-- Rules will be loaded here by JavaScript -->
+            </div>
+            <button type="button" id="add-rule">Add Rule</button>
+            <button type="submit">Save Rules</button>
+        </form>
+    </div>
+
+    <script>
+        // ... existing script ...
+
+        // Rules Editor
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('/rules')
+                .then(response => response.json())
+                .then(rules => {
+                    const container = document.getElementById('rules-container');
+                    for (const keyword in rules) {
+                        const category = rules[keyword];
+                        const newItem = document.createElement('div');
+                        newItem.classList.add('rule-item');
+                        newItem.innerHTML = `
+                            <input type="text" name="rule-keyword" value="${keyword}" required>
+                            <input type="text" name="rule-category" value="${category}" required>
+                            <button type="button" class="remove-rule">Remove</button>
+                        `;
+                        container.appendChild(newItem);
+                    }
+                });
+        });
+
+        document.getElementById('add-rule').addEventListener('click', function() {
+            const container = document.getElementById('rules-container');
+            const newItem = document.createElement('div');
+            newItem.classList.add('rule-item');
+            newItem.innerHTML = `
+                <input type="text" name="rule-keyword" placeholder="Keyword" required>
+                <input type="text" name="rule-category" placeholder="Category" required>
+                <button type="button" class="remove-rule">Remove</button>
+            `;
+            container.appendChild(newItem);
+        });
+
+        document.getElementById('rules-container').addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-rule')) {
+                e.target.parentElement.remove();
+            }
+        });
+
+        document.getElementById('rules-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const rules = {};
+            document.querySelectorAll('.rule-item').forEach(item => {
+                const keyword = item.querySelector('input[name="rule-keyword"]').value;
+                const category = item.querySelector('input[name="rule-category"]').value;
+                if (keyword && category) {
+                    rules[keyword] = category;
+                }
+            });
+
+            fetch('/rules', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(rules)
+            }).then(response => {
+                if (response.ok) {
+                    alert('Rules saved successfully!');
+                } else {
+                    alert('Error saving rules.');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
