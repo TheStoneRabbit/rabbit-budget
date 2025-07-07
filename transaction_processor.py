@@ -29,13 +29,12 @@ def clean_description(desc):
     desc = re.sub(r'\s+', ' ', desc).strip()
     return desc
 
-def clean_citi_csv(input_file, output_file="cleaned_transactions.csv"):
+def clean_citi_csv(input_file):
     df = pd.read_csv(input_file)
     df = df[pd.to_numeric(df['Debit'], errors='coerce').notnull()]  # keep only debits
     df['Description'] = df['Description'].apply(clean_description)
     df['Amount'] = df['Debit'].astype(float)
     cleaned_df = df[['Description', 'Amount']].copy()
-    cleaned_df.to_csv(output_file, index=False)
     return cleaned_df
 
 # === GPT SETUP ===
@@ -64,7 +63,8 @@ def categorize_fallback(description, categories):
     fallback_prompt = f"""Which category from this list best fits the transaction.
     There should only be one transaction categorized into the 'Rent' Category.
     If you think the transaction does not fit any of the categories, put it in 'Uncategorized'.
-    : '{description}'?\nCategories: {[c[0] for c in categories]}"""
+    : '{description}'?
+Categories: {[c[0] for c in categories]}"""
     gpt_response = query_chatgpt(fallback_prompt)
 
     # Basic cleanup and category match
@@ -74,8 +74,7 @@ def categorize_fallback(description, categories):
             return name
     return "Uncategorized"
 
-def assign_categories_to_df(filepath):
-    df = pd.read_csv(filepath)
+def assign_categories_to_dataframe(df):
     assigned_categories = []
     categories = get_category_tuples()
 
@@ -86,12 +85,10 @@ def assign_categories_to_df(filepath):
     for i, row in df.iterrows():
         desc = row["Description"]
         print(f"\U0001f5f2\ufe0f Categorizing [{i+1}/{len(df)}]: {desc}")
-        # categorize_fallback will use the global CATEGORY_RULES, which is not modified during the loop
         category = categorize_fallback(desc, categories)
 
         if category == "Uncategorized":
             print(f"\U0001f575\ufe0f Found uncategorized: {desc}. Adding to rules for future runs.")
-            # Use upper() to be consistent with how keywords are checked.
             updated_rules[desc.upper()] = "NEEDS CATEGORY"
 
         assigned_categories.append(category)
@@ -107,6 +104,6 @@ def assign_categories_to_df(filepath):
 
 def process_transactions(input_filepath, output_filepath):
     cleaned_df = clean_citi_csv(input_filepath)
-    categorized_df = assign_categories_to_df(cleaned_df.to_csv(index=False)) # Pass the cleaned DataFrame as a string
+    categorized_df = assign_categories_to_dataframe(cleaned_df)
     categorized_df.to_csv(output_filepath, index=False)
     return output_filepath
