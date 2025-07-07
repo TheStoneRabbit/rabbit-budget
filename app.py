@@ -47,18 +47,18 @@ def update_categories():
 def upload_file():
     if 'file' not in request.files:
         flash('No file part', 'error')
-        return redirect(request.url)
+        return redirect(url_for('index'))
 
     file = request.files['file']
     email = request.form.get('email')
 
     if file.filename == '':
         flash('No selected file', 'error')
-        return redirect(request.url)
+        return redirect(url_for('index'))
 
     if not email:
         flash('Email is required', 'error')
-        return redirect(request.url)
+        return redirect(url_for('index'))
 
     if file and file.filename.endswith('.csv'):
         filename = secure_filename(file.filename)
@@ -94,7 +94,7 @@ def upload_file():
         return redirect(url_for('index'))
     else:
         flash('Invalid file type. Please upload a CSV file.', 'error')
-        return redirect(request.url)
+        return redirect(url_for('index'))
 
 def send_email(recipient_email, subject, body, attachment_path=None):
     if not all([SMTP_SERVER, SMTP_PORT, EMAIL_ADDRESS, EMAIL_PASSWORD]):
