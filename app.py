@@ -4,6 +4,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+from email.header import Header
 from flask import Flask, request, render_template, flash, redirect, url_for, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
@@ -122,9 +123,9 @@ def send_email(recipient_email, subject, body, attachment_path=None):
     msg = MIMEMultipart()
     msg['From'] = EMAIL_ADDRESS
     msg['To'] = recipient_email
-    msg['Subject'] = subject
+    msg['Subject'] = Header(subject, 'utf-8')
 
-    msg.attach(MIMEText(body, 'plain'))
+    msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
     if attachment_path and os.path.exists(attachment_path):
         try:
