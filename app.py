@@ -58,27 +58,27 @@ def process_and_email_task(app, input_filepath, output_filepath, email):
 
 @app.route('/')
 def index():
-    with open('categories.json', 'r') as f:
+    with open('categories.json', 'r', encoding="utf-8") as f:
         categories = json.load(f)
     return render_template('index.html', categories=categories)
 
 @app.route('/categories', methods=['POST'])
 def update_categories():
     new_categories = request.get_json()
-    with open('categories.json', 'w') as f:
+    with open('categories.json', 'w', encoding="utf-8") as f:
         json.dump(new_categories, f, indent=4)
     return 'Categories updated successfully', 200
 
 @app.route('/rules', methods=['GET'])
 def get_rules():
-    with open('category_rules.json', 'r') as f:
+    with open('category_rules.json', 'r', encoding="utf-8") as f:
         rules = json.load(f)
     return jsonify(rules)
 
 @app.route('/rules', methods=['POST'])
 def update_rules():
     new_rules = request.get_json()
-    with open('category_rules.json', 'w') as f:
+    with open('category_rules.json', 'w', encoding="utf-8") as f:
         json.dump(new_rules, f, indent=4)
     return 'Rules updated successfully', 200
 
@@ -125,7 +125,7 @@ def send_email(recipient_email, subject, body, attachment_path=None):
     msg['To'] = recipient_email
     msg['Subject'] = Header(subject, 'utf-8')
 
-    msg.attach(MIMEText(body, 'plain', 'utf-8'))
+    msg.attach(MIMEText(body, _charset="utf-8"))
     print(f"DEBUG: Email body content (first 100 chars): {body[:100].encode('ascii', 'replace')}")
 
     if attachment_path and os.path.exists(attachment_path):

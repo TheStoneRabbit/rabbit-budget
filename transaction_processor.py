@@ -7,7 +7,7 @@ import json
 
 # === CONFIG ===
 def load_categories():
-    with open("categories.json", "r") as f:
+    with open("categories.json", "r", encoding="utf-8") as f:
         return json.load(f)
 
 def get_category_tuples():
@@ -31,7 +31,7 @@ def clean_description(desc):
     return desc
 
 def clean_citi_csv(input_file):
-    df = pd.read_csv(input_file)
+    df = pd.read_csv(input_file, encoding="utf-8")
     df = df[pd.to_numeric(df['Debit'], errors='coerce').notnull()]  # keep only debits
     df['Description'] = df['Description'].apply(clean_description)
     df['Amount'] = df['Debit'].astype(float)
@@ -81,7 +81,7 @@ def assign_categories_to_dataframe(df):
     categories = get_category_tuples()
 
     # Load a local copy of the rules to update
-    with open("category_rules.json", "r") as f:
+    with open("category_rules.json", "r", encoding="utf-8") as f:
         updated_rules = json.load(f)
 
     for i in df.index:
@@ -109,5 +109,5 @@ def process_transactions(input_filepath, output_filepath):
     cleaned_df = clean_citi_csv(input_filepath)
     print(f"DEBUG: Cleaned DataFrame has {len(cleaned_df)} rows.")
     categorized_df = assign_categories_to_dataframe(cleaned_df)
-    categorized_df.to_csv(output_filepath, index=False)
+    categorized_df.to_csv(output_filepath, index=False, encoding="utf-8")
     return output_filepath
