@@ -104,6 +104,7 @@ def assign_categories_to_dataframe(df):
 
 def process_transactions(input_filepath, output_filepath):
     cleaned_df = clean_citi_csv(input_filepath)
+    print(f"DEBUG: Cleaned DataFrame has {len(cleaned_df)} rows.")
     categorized_df = assign_categories_to_dataframe(cleaned_df)
     categorized_df.to_csv(output_filepath, index=False)
     return output_filepath
