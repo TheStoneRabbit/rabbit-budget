@@ -181,8 +181,8 @@
         </form>
     </div>
     <div class="container">
-        <h2 class="collapsible-header" data-target="categories-content">Manage Categories <span class="collapse-icon">&#9660;</span></h2>
-        <div id="categories-content" class="collapsible-content">
+        <h2 class="collapsible-header" data-target="categories-content">Manage Categories <span class="collapse-icon">&#9658;</span></h2>
+        <div id="categories-content" class="collapsible-content" style="display: none;">
             <input type="text" id="category-search" placeholder="Search categories...">
             <form id="category-form">
                 <div id="categories-container">
@@ -202,7 +202,7 @@
 
     <div class="container">
         <h2 class="collapsible-header" data-target="rules-content">Manage Category Rules <span class="collapse-icon">&#9658;</span></h2>
-        <div id="rules-content" class="collapsible-content">
+        <div id="rules-content" class="collapsible-content" style="display: none;">
             <input type="text" id="rule-search" placeholder="Search rules...">
             <form id="rules-form">
                 <div id="rules-container">
@@ -214,6 +214,7 @@
         </div>
     </div>
 
+    
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Collapsible Headers
@@ -233,9 +234,9 @@
                 });
             });
 
-            // Initial collapse state (all open by default)
+            // Initial collapse state (all collapsed by default)
             document.querySelectorAll('.collapsible-content').forEach(content => {
-                content.style.display = 'block'; // Start open
+                content.style.display = 'none'; // Start collapsed
             });
 
             // Category Search
