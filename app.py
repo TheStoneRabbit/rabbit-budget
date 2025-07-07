@@ -146,7 +146,7 @@ def send_email(recipient_email, subject, body, attachment_path=None):
 
     try:
         # Convert the message to a string with UTF-8 encoding
-        email_content = msg.as_string()
+        email_content = msg.as_bytes()
         print(f"DEBUG: Full email content (first 200 chars): {email_content[:200].encode('ascii', 'replace')}")
 
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
