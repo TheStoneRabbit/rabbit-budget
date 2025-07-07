@@ -82,9 +82,10 @@ def assign_categories_to_dataframe(df):
     with open("category_rules.json", "r") as f:
         updated_rules = json.load(f)
 
-    for i, row in df.iterrows():
+    for i in df.index:
+        row = df.loc[i]
         desc = row["Description"]
-        print(f"\U0001f5f2\ufe0f Categorizing [{i+1}/{len(df)}]: {desc}")
+        print(f"🗂️ Categorizing [{i+1}/{len(df)}]: {desc}")
         category = categorize_fallback(desc, categories)
 
         if category == "Uncategorized":
