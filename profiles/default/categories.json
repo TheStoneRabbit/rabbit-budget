@@ -1,0 +1,58 @@
+[
+    {
+        "name": "Eating Out",
+        "budget": 500.00
+    },
+    {
+        "name": "Groceries",
+        "budget": 500.00
+    },
+    {
+        "name": "Rent",
+        "budget": 1900.00
+    },
+    {
+        "name": "Public Transportation",
+        "budget": 100.00
+    },
+    {
+        "name": "Repairs",
+        "budget": 0.00
+    },
+    {
+        "name": "Gas",
+        "budget": 50.00
+    },
+    {
+        "name": "Doctor's Office",
+        "budget": 0.00
+    },
+    {
+        "name": "Prescriptions",
+        "budget": 200.00
+    },
+    {
+        "name": "Fun",
+        "budget": 600.00
+    },
+    {
+        "name": "Going Out",
+        "budget": 500.00
+    },
+    {
+        "name": "Gifts",
+        "budget": 100.00
+    },
+    {
+        "name": "Uncategorized",
+        "budget": 0.00
+    },
+    {
+        "name": "Discretionary",
+        "budget": 0.00
+    },
+    {
+        "name": "Subscription",
+        "budget": 100.00
+    }
+]

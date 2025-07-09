@@ -6,17 +6,24 @@ import time
 import json
 
 # === CONFIG ===
-def load_categories():
-    with open("categories.json", "r", encoding="utf-8") as f:
+def get_profile_path(profile):
+    return os.path.join("profiles", profile)
+
+def load_categories(profile="default"):
+    profile_path = get_profile_path(profile)
+    categories_path = os.path.join(profile_path, "categories.json")
+    with open(categories_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def get_category_tuples():
-    categories_data = load_categories()
+def get_category_tuples(profile="default"):
+    categories_data = load_categories(profile)
     return [(category['name'], category['budget']) for category in categories_data]
 
-categories = get_category_tuples()
-with open("category_rules.json", "r") as f:
-    CATEGORY_RULES = json.load(f)
+def load_category_rules(profile="default"):
+    profile_path = get_profile_path(profile)
+    rules_path = os.path.join(profile_path, "category_rules.json")
+    with open(rules_path, "r") as f:
+        return json.load(f)
 
 uncategorized = []
 # === CLEANING ===
@@ -57,8 +64,8 @@ def query_chatgpt(prompt):
 
 
 # === CATEGORIZATION ===
-def categorize_fallback(description, categories):
-    for keyword, category in CATEGORY_RULES.items():
+def categorize_fallback(description, categories, category_rules):
+    for keyword, category in category_rules.items():
         if keyword in description.upper():
             return category
     # Fallback to GPT
@@ -76,23 +83,20 @@ Categories: {[c[0] for c in categories]}"""
             return name
     return "Uncategorized"
 
-def assign_categories_to_dataframe(df):
+def assign_categories_to_dataframe(df, profile="default"):
     assigned_categories = []
-    categories = get_category_tuples()
-
-    # Load a local copy of the rules to update
-    with open("category_rules.json", "r", encoding="utf-8") as f:
-        updated_rules = json.load(f)
+    categories = get_category_tuples(profile)
+    category_rules = load_category_rules(profile)
 
     for i in df.index:
         row = df.loc[i]
         desc = row["Description"]
         print(f"🗂️ Categorizing [{i+1}/{len(df)}]: {desc}")
-        category = categorize_fallback(desc, categories)
+        category = categorize_fallback(desc, categories, category_rules)
 
         if category == "Uncategorized":
             print(f"\U0001f575\ufe0f Found uncategorized: {desc}. Adding to rules for future runs.")
-            updated_rules[desc.upper()] = "NEEDS CATEGORY"
+            category_rules[desc.upper()] = "NEEDS CATEGORY"
 
         assigned_categories.append(category)
         time.sleep(1)  # prevent hammering GPT API
@@ -100,14 +104,16 @@ def assign_categories_to_dataframe(df):
     df["Category"] = assigned_categories
 
     # Save the updated rules back to the file
-    with open("category_rules.json", "w") as f:
-        json.dump(updated_rules, f, indent=4)
+    profile_path = get_profile_path(profile)
+    rules_path = os.path.join(profile_path, "category_rules.json")
+    with open(rules_path, "w") as f:
+        json.dump(category_rules, f, indent=4)
 
     return df
 
-def process_transactions(input_filepath, output_filepath):
+def process_transactions(input_filepath, output_filepath, profile="default"):
     cleaned_df = clean_citi_csv(input_filepath)
     print(f"DEBUG: Cleaned DataFrame has {len(cleaned_df)} rows.")
-    categorized_df = assign_categories_to_dataframe(cleaned_df)
+    categorized_df = assign_categories_to_dataframe(cleaned_df, profile)
     categorized_df.to_csv(output_filepath, index=False, encoding="utf-8")
     return output_filepath

@@ -14,7 +14,7 @@ import threading
 # Load environment variables from .env file
 load_dotenv()
 
-from transaction_processor import process_transactions
+from transaction_processor import process_transactions, get_profile_path, load_categories, load_category_rules
 
 import json
 
@@ -33,11 +33,11 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", 587)) # Default to 587 for TLS
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-def process_and_email_task(app, input_filepath, output_filepath, email):
+def process_and_email_task(app, input_filepath, output_filepath, email, profile):
     with app.app_context():
         try:
             # Process the transactions
-            processed_file_path = process_transactions(input_filepath, output_filepath)
+            processed_file_path = process_transactions(input_filepath, output_filepath, profile)
 
             # Send email with the processed file
             send_email(
@@ -58,46 +58,60 @@ def process_and_email_task(app, input_filepath, output_filepath, email):
 
 @app.route('/')
 def index():
-    with open('categories.json', 'r', encoding="utf-8") as f:
-        categories = json.load(f)
-    return render_template('index.html', categories=categories)
+    profiles = [d for d in os.listdir('profiles') if os.path.isdir(os.path.join('profiles', d))]
+    # Redirect to the first profile if one exists, or handle no profiles case
+    if profiles:
+        return redirect(url_for('profile_view', profile=profiles[0]))
+    else:
+        # Optionally, handle the case with no profiles, e.g., show a setup page
+        return "No profiles found. Please create a profile."
 
-@app.route('/categories', methods=['POST'])
-def update_categories():
+
+@app.route('/<profile>')
+def profile_view(profile):
+    profiles = [d for d in os.listdir('profiles') if os.path.isdir(os.path.join('profiles', d))]
+    categories = load_categories(profile)
+    return render_template('index.html', categories=categories, profile=profile, profiles=profiles)
+
+@app.route('/<profile>/categories', methods=['POST'])
+def update_categories(profile):
     new_categories = request.get_json()
-    with open('categories.json', 'w', encoding="utf-8") as f:
+    profile_path = get_profile_path(profile)
+    categories_path = os.path.join(profile_path, "categories.json")
+    with open(categories_path, 'w', encoding="utf-8") as f:
         json.dump(new_categories, f, indent=4)
     return 'Categories updated successfully', 200
 
-@app.route('/rules', methods=['GET'])
-def get_rules():
-    with open('category_rules.json', 'r', encoding="utf-8") as f:
-        rules = json.load(f)
+@app.route('/<profile>/rules', methods=['GET'])
+def get_rules(profile):
+    rules = load_category_rules(profile)
     return jsonify(rules)
 
-@app.route('/rules', methods=['POST'])
-def update_rules():
+@app.route('/<profile>/rules', methods=['POST'])
+def update_rules(profile):
     new_rules = request.get_json()
-    with open('category_rules.json', 'w', encoding="utf-8") as f:
+    profile_path = get_profile_path(profile)
+    rules_path = os.path.join(profile_path, "category_rules.json")
+    with open(rules_path, 'w', encoding="utf-8") as f:
         json.dump(new_rules, f, indent=4)
     return 'Rules updated successfully', 200
 
-@app.route('/upload', methods=['POST'])
-def upload_file():
+@app.route('/<profile>/upload', methods=['POST'])
+def upload_file(profile):
     if 'file' not in request.files:
         flash('No file part', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('profile_view', profile=profile))
 
     file = request.files['file']
     email = request.form.get('email')
 
     if file.filename == '':
         flash('No selected file', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('profile_view', profile=profile))
 
     if not email:
         flash('Email is required', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('profile_view', profile=profile))
 
     if file and file.filename.lower().endswith('.csv'):
         filename = secure_filename(file.filename)
@@ -107,14 +121,14 @@ def upload_file():
         file.save(input_filepath)
 
         # Run the processing in a background thread
-        thread = threading.Thread(target=process_and_email_task, args=(app, input_filepath, output_filepath, email))
+        thread = threading.Thread(target=process_and_email_task, args=(app, input_filepath, output_filepath, email, profile))
         thread.start()
 
         flash('File successfully uploaded and is being processed. You will receive an email shortly.', 'success')
-        return redirect(url_for('index'))
+        return redirect(url_for('profile_view', profile=profile))
     else:
         flash('Invalid file type. Please upload a CSV file.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('profile_view', profile=profile))
 
 def send_email(recipient_email, subject, body, attachment_path=None):
     if not all([SMTP_SERVER, SMTP_PORT, EMAIL_ADDRESS, EMAIL_PASSWORD]):

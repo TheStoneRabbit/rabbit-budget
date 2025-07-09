@@ -28,6 +28,7 @@
             margin-bottom: 8px;
             color: #555;
         }
+        select,
         input[type="file"],
         input[type="email"] {
             width: calc(100% - 22px);
@@ -170,7 +171,14 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
-        <form action="/upload" method="post" enctype="multipart/form-data">
+        <form id="upload-form" method="post" enctype="multipart/form-data">
+            <label for="profile">Select Profile:</label>
+            <select id="profile" name="profile">
+                {% for p in profiles %}
+                <option value="{{ p }}" {% if p == profile %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+            </select>
+
             <label for="file">Select CSV File:</label>
             <input type="file" id="file" name="file" accept=".csv" required>
 
@@ -217,6 +225,27 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const profileSelect = document.getElementById('profile');
+            const uploadForm = document.getElementById('upload-form');
+
+            if (profileSelect) {
+                profileSelect.addEventListener('change', function() {
+                    const selectedProfile = this.value;
+                    if (selectedProfile) {
+                        window.location.href = '/' + selectedProfile;
+                    }
+                });
+            }
+
+            if (uploadForm) {
+                uploadForm.addEventListener('submit', function(e) {
+                    const selectedProfile = profileSelect.value;
+                    if (selectedProfile) {
+                        this.action = '/' + selectedProfile + '/upload';
+                    }
+                });
+            }
+
             // Collapsible Headers
             document.querySelectorAll('.collapsible-header').forEach(header => {
                 header.addEventListener('click', function() {
@@ -289,7 +318,7 @@
                     }
                 });
 
-                fetch('/categories', {
+                fetch('/{{ profile }}/categories', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -319,7 +348,7 @@
             });
 
             // Rules Editor - Load Rules
-            fetch('/rules')
+            fetch('/{{ profile }}/rules')
                 .then(response => response.json())
                 .then(rules => {
                     const container = document.getElementById('rules-container');
@@ -373,7 +402,7 @@
                     }
                 });
 
-                fetch('/rules', {
+                fetch('/{{ profile }}/rules', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
