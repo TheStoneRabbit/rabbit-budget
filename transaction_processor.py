@@ -27,19 +27,22 @@ def clean_citi_csv(input_file):
     return cleaned_df
 
 # === GPT SETUP ===
-conversation_log = [{"role": "system", "content": "You are ChatGPT, a helpful assistant, that will help me categorize my credit card transactions."}]
+SYSTEM_PROMPT = "You are ChatGPT, a helpful assistant, that will help me categorize my credit card transactions."
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def query_chatgpt(prompt):
     try:
-        conversation_log.append({"role": "user", "content": prompt})
-        chat_completion = client.chat.completions.create(
-            messages=conversation_log,
-            model="gpt-4-turbo",
+        conversation = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
+        chat_completion = client.responses.create(
+            model="gpt-4.1-mini",
+            input=conversation,
         )
-        return chat_completion.choices[0].message.content
-    except Exception as e:
-        print(f"GPT fallback failed: {e}")
+        return chat_completion.output_text
+    except Exception as error:
+        print(f"GPT fallback failed: {error}")
         return "Uncategorized"
 
 
