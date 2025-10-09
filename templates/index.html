@@ -195,7 +195,7 @@
             <form id="category-form">
                 <div id="categories-container">
                     {% for category in categories %}
-                    <div class="category-item">
+                    <div class="category-item" data-original-name="{{ category.name | e }}">
                         <input type="text" name="category-name" value="{{ category.name }}" required>
                         <input type="number" name="category-budget" value="{{ category.budget }}" step="0.01" required>
                         <button type="button" class="remove-category">Remove</button>
@@ -224,9 +224,19 @@
 
     
     <script>
+        const activeProfile = {{ profile | tojson }};
+        let initialCategories = {{ categories | tojson }};
+        let initialRules = {};
+        initialCategories = initialCategories.map(cat => ({
+            name: cat.name,
+            budget: Number(cat.budget)
+        }));
+
         document.addEventListener('DOMContentLoaded', function() {
             const profileSelect = document.getElementById('profile');
             const uploadForm = document.getElementById('upload-form');
+            const saveCategoriesButton = document.getElementById('save-categories');
+            const saveRulesButton = document.getElementById('save-rules');
 
             if (profileSelect) {
                 profileSelect.addEventListener('change', function() {
@@ -269,23 +279,27 @@
             });
 
             // Category Search
-            document.getElementById('category-search').addEventListener('keyup', function() {
-                const searchTerm = this.value.toLowerCase();
-                document.querySelectorAll('#categories-container .category-item').forEach(item => {
-                    const categoryName = item.querySelector('input[name="category-name"]').value.toLowerCase();
-                    if (categoryName.includes(searchTerm)) {
-                        item.style.display = 'flex';
-                    } else {
-                        item.style.display = 'none';
-                    }
+            const categorySearch = document.getElementById('category-search');
+            if (categorySearch) {
+                categorySearch.addEventListener('keyup', function() {
+                    const searchTerm = this.value.toLowerCase();
+                    document.querySelectorAll('#categories-container .category-item').forEach(item => {
+                        const categoryName = item.querySelector('input[name="category-name"]').value.toLowerCase();
+                        if (categoryName.includes(searchTerm)) {
+                            item.style.display = 'flex';
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
                 });
-            });
+            }
 
             // Add Category Button
             document.getElementById('add-category').addEventListener('click', function() {
                 const container = document.getElementById('categories-container');
                 const newItem = document.createElement('div');
                 newItem.classList.add('category-item');
+                newItem.dataset.originalName = '';
                 newItem.innerHTML = `
                     <input type="text" name="category-name" placeholder="Category Name" required>
                     <input type="number" name="category-budget" placeholder="Budget" step="0.01" required>
@@ -301,56 +315,134 @@
                 }
             });
 
-            // Save Categories Button
-            document.getElementById('save-categories').addEventListener('click', function() {
-                document.getElementById('category-form').dispatchEvent(new Event('submit', { cancelable: true }));
-            });
-
-            // Category Form Submission
-            document.getElementById('category-form').addEventListener('submit', function(e) {
-                e.preventDefault();
+            const getCurrentCategories = () => {
                 const categories = [];
                 document.querySelectorAll('.category-item').forEach(item => {
-                    const name = item.querySelector('input[name="category-name"]').value;
-                    const budget = parseFloat(item.querySelector('input[name="category-budget"]').value);
-                    if (name && !isNaN(budget)) {
-                        categories.push({ name, budget });
+                    const nameField = item.querySelector('input[name="category-name"]');
+                    const budgetField = item.querySelector('input[name="category-budget"]');
+                    const name = nameField.value.trim();
+                    const budgetValue = parseFloat(budgetField.value);
+                    const originalName = (item.dataset.originalName || '').trim();
+                    if (name) {
+                        categories.push({
+                            name,
+                            budget: Number.isFinite(budgetValue) ? budgetValue : 0,
+                            originalName: originalName || null,
+                        });
                     }
+                });
+                return categories;
+            };
+
+            const saveCategories = async () => {
+                const currentCategories = getCurrentCategories();
+                const initialMap = new Map(initialCategories.map(cat => [cat.name.toLowerCase(), cat]));
+
+                const toDelete = initialCategories
+                    .filter(cat => !currentCategories.some(item => {
+                        const reference = (item.originalName || item.name || '').toLowerCase();
+                        return reference === cat.name.toLowerCase();
+                    }))
+                    .map(cat => cat.name);
+
+                const toCreate = currentCategories.filter(cat => !cat.originalName);
+                const toUpdate = currentCategories.filter(cat => {
+                    if (!cat.originalName) {
+                        return false;
+                    }
+                    const baseline = initialMap.get(cat.originalName.toLowerCase());
+                    if (!baseline) {
+                        return true;
+                    }
+                    const nameChanged = cat.originalName.toLowerCase() !== cat.name.toLowerCase();
+                    const budgetChanged = Number.parseFloat(baseline.budget) !== cat.budget;
+                    return nameChanged || budgetChanged;
                 });
 
-                fetch('/{{ profile }}/categories', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(categories)
-                }).then(response => {
-                    if (response.ok) {
-                        alert('Categories saved successfully!');
-                    } else {
-                        alert('Error saving categories.');
+                try {
+                    for (const name of toDelete) {
+                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/categories/${encodeURIComponent(name)}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response.ok && response.status !== 204) {
+                            throw new Error(`Failed to delete category ${name}`);
+                        }
                     }
-                });
+
+                    for (const entry of toUpdate) {
+                        const targetName = entry.originalName || entry.name;
+                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/categories/${encodeURIComponent(targetName)}`, {
+                            method: 'PATCH',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                name: entry.name,
+                                budget: entry.budget
+                            })
+                        });
+                        if (!response.ok) {
+                            throw new Error(`Failed to update category ${entry.name}`);
+                        }
+                    }
+
+                    for (const entry of toCreate) {
+                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/categories`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(entry)
+                        });
+                        if (!response.ok) {
+                            throw new Error(`Failed to create category ${entry.name}`);
+                        }
+                    }
+
+                    alert('Categories saved successfully!');
+                    document.querySelectorAll('.category-item').forEach(item => {
+                        const nameField = item.querySelector('input[name="category-name"]');
+                        if (nameField) {
+                            item.dataset.originalName = nameField.value.trim();
+                        }
+                    });
+                    const refreshedCategories = getCurrentCategories();
+                    initialCategories = refreshedCategories.map(cat => ({
+                        name: cat.name,
+                        budget: cat.budget
+                    }));
+                } catch (error) {
+                    console.error(error);
+                    alert('Error saving categories.');
+                }
+            };
+
+            saveCategoriesButton?.addEventListener('click', function() {
+                saveCategories();
             });
 
             // Rule Search
-            document.getElementById('rule-search').addEventListener('keyup', function() {
-                const searchTerm = this.value.toLowerCase();
-                document.querySelectorAll('#rules-container .rule-item').forEach(item => {
-                    const keyword = item.querySelector('input[name="rule-keyword"]').value.toLowerCase();
-                    const category = item.querySelector('input[name="rule-category"]').value.toLowerCase();
-                    if (keyword.includes(searchTerm) || category.includes(searchTerm)) {
-                        item.style.display = 'flex';
-                    } else {
-                        item.style.display = 'none';
-                    }
+            const ruleSearch = document.getElementById('rule-search');
+            if (ruleSearch) {
+                ruleSearch.addEventListener('keyup', function() {
+                    const searchTerm = this.value.toLowerCase();
+                    document.querySelectorAll('#rules-container .rule-item').forEach(item => {
+                        const keyword = item.querySelector('input[name="rule-keyword"]').value.toLowerCase();
+                        const category = item.querySelector('input[name="rule-category"]').value.toLowerCase();
+                        if (keyword.includes(searchTerm) || category.includes(searchTerm)) {
+                            item.style.display = 'flex';
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
                 });
-            });
+            }
 
             // Rules Editor - Load Rules
-            fetch('/{{ profile }}/rules')
+            fetch('/' + encodeURIComponent(activeProfile) + '/rules')
                 .then(response => response.json())
                 .then(rules => {
+                    initialRules = { ...rules };
                     const container = document.getElementById('rules-container');
                     for (const keyword in rules) {
                         const category = rules[keyword];
@@ -385,36 +477,81 @@
                 }
             });
 
-            // Save Rules Button
-            document.getElementById('save-rules').addEventListener('click', function() {
-                document.getElementById('rules-form').dispatchEvent(new Event('submit', { cancelable: true }));
-            });
-
-            // Rules Form Submission
-            document.getElementById('rules-form').addEventListener('submit', function(e) {
-                e.preventDefault();
+            const getCurrentRules = () => {
                 const rules = {};
                 document.querySelectorAll('.rule-item').forEach(item => {
-                    const keyword = item.querySelector('input[name="rule-keyword"]').value;
-                    const category = item.querySelector('input[name="rule-category"]').value;
-                    if (keyword && category) {
-                        rules[keyword] = category;
+                    const keywordField = item.querySelector('input[name="rule-keyword"]');
+                    const categoryField = item.querySelector('input[name="rule-category"]');
+                    const keyword = keywordField.value.trim();
+                    const category = categoryField.value.trim();
+                    if (keyword) {
+                        rules[keyword.toUpperCase()] = category;
                     }
                 });
+                return rules;
+            };
 
-                fetch('/{{ profile }}/rules', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(rules)
-                }).then(response => {
-                    if (response.ok) {
-                        alert('Rules saved successfully!');
-                    } else {
-                        alert('Error saving rules.');
+            const saveRules = async () => {
+                const currentRules = getCurrentRules();
+                const initialKeys = Object.keys(initialRules);
+                const currentKeys = Object.keys(currentRules);
+
+                const toDelete = initialKeys.filter(key => !currentKeys.includes(key));
+                const toCreate = currentKeys.filter(key => !initialKeys.includes(key));
+                const toUpdate = currentKeys.filter(key => initialKeys.includes(key) && initialRules[key] !== currentRules[key]);
+
+                try {
+                    for (const key of toDelete) {
+                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/rules/${encodeURIComponent(key)}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response.ok && response.status !== 204) {
+                            throw new Error(`Failed to delete rule ${key}`);
+                        }
                     }
-                });
+
+                    for (const key of toUpdate) {
+                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/rules/${encodeURIComponent(key)}`, {
+                            method: 'PATCH',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                keyword: key,
+                                category: currentRules[key]
+                            })
+                        });
+                        if (!response.ok) {
+                            throw new Error(`Failed to update rule ${key}`);
+                        }
+                    }
+
+                    for (const key of toCreate) {
+                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/rules`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                keyword: key,
+                                category: currentRules[key]
+                            })
+                        });
+                        if (!response.ok) {
+                            throw new Error(`Failed to create rule ${key}`);
+                        }
+                    }
+
+                    alert('Rules saved successfully!');
+                    initialRules = { ...currentRules };
+                } catch (error) {
+                    console.error(error);
+                    alert('Error saving rules.');
+                }
+            };
+
+            saveRulesButton?.addEventListener('click', function() {
+                saveRules();
             });
         });
     </script>

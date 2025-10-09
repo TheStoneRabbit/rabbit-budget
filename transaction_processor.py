@@ -1,31 +1,11 @@
-from openai import OpenAI
 import os
-import pandas as pd
 import re
 import time
-import json
 
-# === CONFIG ===
-def get_profile_path(profile):
-    return os.path.join("profiles", profile)
+import pandas as pd
+from openai import OpenAI
 
-def load_categories(profile="default"):
-    profile_path = get_profile_path(profile)
-    categories_path = os.path.join(profile_path, "categories.json")
-    with open(categories_path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def get_category_tuples(profile="default"):
-    categories_data = load_categories(profile)
-    return [(category['name'], category['budget']) for category in categories_data]
-
-def load_category_rules(profile="default"):
-    profile_path = get_profile_path(profile)
-    rules_path = os.path.join(profile_path, "category_rules.json")
-    with open(rules_path, "r") as f:
-        return json.load(f)
-
-uncategorized = []
+from storage import NotFoundError, list_categories, list_rules, profile_exists, upsert_rule
 # === CLEANING ===
 def clean_description(desc):
     if pd.isnull(desc):
@@ -96,22 +76,40 @@ def assign_categories_to_dataframe(df, profile="default"):
 
         if category == "Uncategorized":
             print(f"\U0001f575\ufe0f Found uncategorized: {desc}. Adding to rules for future runs.")
-            category_rules[desc.upper()] = "NEEDS CATEGORY"
+            keyword = desc.upper()
+            category_rules[keyword] = "NEEDS CATEGORY"
+            try:
+                upsert_rule(profile, keyword, "NEEDS CATEGORY")
+            except NotFoundError:
+                print(f"Profile '{profile}' not found while updating rules.")
 
         assigned_categories.append(category)
         time.sleep(1)  # prevent hammering GPT API
 
     df["Category"] = assigned_categories
 
-    # Save the updated rules back to the file
-    profile_path = get_profile_path(profile)
-    rules_path = os.path.join(profile_path, "category_rules.json")
-    with open(rules_path, "w") as f:
-        json.dump(category_rules, f, indent=4)
-
     return df
 
+# === STORAGE HELPERS ===
+def load_categories(profile="default"):
+    try:
+        return list_categories(profile)
+    except NotFoundError:
+        return []
+
+def get_category_tuples(profile="default"):
+    categories_data = load_categories(profile)
+    return [(category['name'], category['budget']) for category in categories_data]
+
+def load_category_rules(profile="default"):
+    try:
+        return list_rules(profile)
+    except NotFoundError:
+        return {}
+
 def process_transactions(input_filepath, output_filepath, profile="default"):
+    if not profile_exists(profile):
+        raise NotFoundError(f"Profile '{profile}' not found.")
     cleaned_df = clean_citi_csv(input_filepath)
     print(f"DEBUG: Cleaned DataFrame has {len(cleaned_df)} rows.")
     categorized_df = assign_categories_to_dataframe(cleaned_df, profile)

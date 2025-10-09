@@ -10,13 +10,18 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
 import threading
+from urllib.parse import unquote
 
 # Load environment variables from .env file
 load_dotenv()
 
-from transaction_processor import process_transactions, get_profile_path, load_categories, load_category_rules
+from transaction_processor import (
+    process_transactions,
+    load_categories,
+)
 
-import json
+import storage
+from storage import ConflictError, NotFoundError
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "supersecretkey") # Replace with a strong secret key
@@ -32,6 +37,14 @@ SMTP_SERVER = os.getenv("SMTP_SERVER")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587)) # Default to 587 for TLS
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+
+storage.init_db()
+
+def _parse_budget(value):
+    try:
+        return float(value), True
+    except (TypeError, ValueError):
+        return 0.0, False
 
 def process_and_email_task(app, input_filepath, output_filepath, email, profile):
     with app.app_context():
@@ -58,7 +71,7 @@ def process_and_email_task(app, input_filepath, output_filepath, email, profile)
 
 @app.route('/')
 def index():
-    profiles = [d for d in os.listdir('profiles') if os.path.isdir(os.path.join('profiles', d))]
+    profiles = storage.list_profiles()
     # Redirect to the first profile if one exists, or handle no profiles case
     if profiles:
         return redirect(url_for('profile_view', profile=profiles[0]))
@@ -69,32 +82,146 @@ def index():
 
 @app.route('/<profile>')
 def profile_view(profile):
-    profiles = [d for d in os.listdir('profiles') if os.path.isdir(os.path.join('profiles', d))]
+    profiles = storage.list_profiles()
+    if profile not in profiles:
+        return f"Profile '{profile}' not found.", 404
     categories = load_categories(profile)
     return render_template('index.html', categories=categories, profile=profile, profiles=profiles)
 
-@app.route('/<profile>/categories', methods=['POST'])
-def update_categories(profile):
-    new_categories = request.get_json()
-    profile_path = get_profile_path(profile)
-    categories_path = os.path.join(profile_path, "categories.json")
-    with open(categories_path, 'w', encoding="utf-8") as f:
-        json.dump(new_categories, f, indent=4)
-    return 'Categories updated successfully', 200
+@app.route('/<profile>/categories', methods=['GET', 'POST'])
+def categories_collection(profile):
+    if request.method == 'GET':
+        try:
+            categories = storage.list_categories(profile)
+        except NotFoundError as err:
+            return jsonify({'error': str(err)}), 404
+        return jsonify(categories), 200
+
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get('name') or '').strip()
+    budget_raw = payload.get('budget', 0)
+
+    if not name:
+        return jsonify({'error': 'Category name is required.'}), 400
+
+    budget, valid_budget = _parse_budget(budget_raw)
+    if not valid_budget:
+        return jsonify({'error': 'Category budget must be a number.'}), 400
+
+    try:
+        new_category = storage.create_category(profile, name, budget)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    except ConflictError as err:
+        return jsonify({'error': str(err)}), 409
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+
+    return jsonify(new_category), 201
+
+@app.route('/<profile>/categories/<category_name>', methods=['PATCH', 'DELETE'])
+def category_item(profile, category_name):
+    decoded_name = unquote(category_name)
+
+    if request.method == 'DELETE':
+        try:
+            storage.delete_category(profile, decoded_name)
+        except NotFoundError as err:
+            return jsonify({'error': str(err)}), 404
+        return '', 204
+
+    payload = request.get_json(silent=True) or {}
+
+    new_name = payload.get('name', decoded_name)
+    budget_raw = payload.get('budget', None)
+
+    if budget_raw is not None:
+        new_budget, valid_budget = _parse_budget(budget_raw)
+        if not valid_budget:
+            return jsonify({'error': 'Category budget must be a number.'}), 400
+    else:
+        try:
+            current = next(
+                c for c in storage.list_categories(profile)
+                if c['name'].lower() == decoded_name.lower()
+            )
+            new_budget = current['budget']
+        except StopIteration:
+            return jsonify({'error': f"Category '{decoded_name}' not found."}), 404
+        except NotFoundError as err:
+            return jsonify({'error': str(err)}), 404
+
+    try:
+        updated = storage.update_category(profile, decoded_name, new_name, new_budget)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    except ConflictError as err:
+        return jsonify({'error': str(err)}), 409
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+
+    return jsonify(updated), 200
 
 @app.route('/<profile>/rules', methods=['GET'])
 def get_rules(profile):
-    rules = load_category_rules(profile)
+    try:
+        rules = storage.list_rules(profile)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
     return jsonify(rules)
 
 @app.route('/<profile>/rules', methods=['POST'])
-def update_rules(profile):
-    new_rules = request.get_json()
-    profile_path = get_profile_path(profile)
-    rules_path = os.path.join(profile_path, "category_rules.json")
-    with open(rules_path, 'w', encoding="utf-8") as f:
-        json.dump(new_rules, f, indent=4)
-    return 'Rules updated successfully', 200
+def create_rule(profile):
+    payload = request.get_json(silent=True) or {}
+    keyword = (payload.get('keyword') or '').strip().upper()
+    category = (payload.get('category') or '').strip()
+
+    if not keyword:
+        return jsonify({'error': 'Rule keyword is required.'}), 400
+    if not category:
+        return jsonify({'error': 'Rule category is required.'}), 400
+
+    try:
+        rule = storage.create_rule(profile, keyword, category)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    except ConflictError as err:
+        return jsonify({'error': str(err)}), 409
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+
+    return jsonify(rule), 201
+
+@app.route('/<profile>/rules/<rule_keyword>', methods=['PATCH', 'DELETE'])
+def rule_item(profile, rule_keyword):
+    decoded_keyword = unquote(rule_keyword).upper()
+
+    if request.method == 'DELETE':
+        try:
+            storage.delete_rule(profile, decoded_keyword)
+        except NotFoundError as err:
+            return jsonify({'error': str(err)}), 404
+        return '', 204
+
+    payload = request.get_json(silent=True) or {}
+    new_keyword = (payload.get('keyword') or decoded_keyword).strip().upper()
+    new_category = (payload.get('category') or '').strip()
+
+    if not new_keyword:
+        return jsonify({'error': 'Rule keyword cannot be empty.'}), 400
+    if not new_category:
+        return jsonify({'error': 'Rule category cannot be empty.'}), 400
+
+    try:
+        updated = storage.update_rule(profile, decoded_keyword, new_keyword, new_category)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    except ConflictError as err:
+        return jsonify({'error': str(err)}), 409
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+
+    return jsonify(updated), 200
 
 @app.route('/<profile>/upload', methods=['POST'])
 def upload_file(profile):
@@ -114,6 +241,10 @@ def upload_file(profile):
         return redirect(url_for('profile_view', profile=profile))
 
     if file and file.filename.lower().endswith('.csv'):
+        if not storage.profile_exists(profile):
+            flash(f"Profile '{profile}' not found.", 'error')
+            return redirect(url_for('index'))
+
         filename = secure_filename(file.filename)
         input_filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         output_filename = "categorized_" + filename
