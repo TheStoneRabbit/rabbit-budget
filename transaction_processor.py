@@ -54,7 +54,7 @@ def query_chatgpt(prompt):
             {"role": "user", "content": prompt},
         ]
         chat_completion = client.responses.create(
-            model="gpt-4.1-mini",
+            model="gpt-5-mini",
             input=conversation,
         )
         return chat_completion.output_text
