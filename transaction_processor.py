@@ -31,9 +31,14 @@ def clean_citi_csv(input_file, profile="default"):
         if "Description" not in df.columns or "Debit" not in df.columns:
             raise ValueError("CSV missing required columns: 'Description' and/or 'Debit'")
 
-    df = df[pd.to_numeric(df[amount_col], errors='coerce').notnull()]  # keep only debits
+    amounts = pd.to_numeric(df[amount_col], errors='coerce')
+    has_negatives = (amounts < 0).any()
+    if has_negatives:
+        df = df[amounts < 0]
+    else:
+        df = df[amounts.notnull()]
     df['Description'] = df[description_col].apply(clean_description)
-    df['Amount'] = df[amount_col].astype(float)
+    df['Amount'] = df[amount_col].astype(float).abs()
     cleaned_df = df[['Description', 'Amount']].copy()
     cleaned_df = cleaned_df.reset_index(drop=True)
     return cleaned_df
