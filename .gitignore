@@ -11,3 +11,4 @@ wheels/
 *.csv
 .env
 *.db
+results.csv

@@ -5,6 +5,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from email.header import Header
+import pandas as pd
 from flask import Flask, request, render_template, flash, redirect, url_for, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
@@ -46,17 +47,56 @@ def _parse_budget(value):
     except (TypeError, ValueError):
         return 0.0, False
 
+def build_category_summary(csv_path):
+    """Aggregate total spend per category for inclusion in the email body."""
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as error:
+        print(f"Failed to read categorized CSV for summary: {error}")
+        return None
+
+    if not {'Category', 'Amount'}.issubset(df.columns):
+        print("Categorized CSV missing required columns for summary.")
+        return None
+
+    try:
+        amounts = pd.to_numeric(df['Amount'], errors='coerce')
+        summary = (
+            df.assign(Amount=amounts)
+            .dropna(subset=['Amount'])
+            .groupby('Category')['Amount']
+            .sum()
+            .sort_values(ascending=False)
+        )
+    except Exception as error:
+        print(f"Failed to build category summary: {error}")
+        return None
+
+    if summary.empty:
+        return None
+
+    lines = [f"{category}: ${total:,.2f}" for category, total in summary.items()]
+    return "\n".join(lines)
+
 def process_and_email_task(app, input_filepath, output_filepath, email, profile):
     with app.app_context():
         try:
             # Process the transactions
             processed_file_path = process_transactions(input_filepath, output_filepath, profile)
 
+            summary_text = build_category_summary(processed_file_path)
+            body_lines = ["Please find your categorized transactions report attached."]
+            if summary_text:
+                body_lines.append("")
+                body_lines.append("Category spend summary:")
+                body_lines.append(summary_text)
+            body = "\n".join(body_lines)
+
             # Send email with the processed file
             send_email(
                 recipient_email=email,
                 subject="Your Categorized Transactions Report",
-                body="Please find your categorized transactions report attached.",
+                body=body,
                 attachment_path=processed_file_path
             )
             print(f"Successfully processed and sent email to {email}")
