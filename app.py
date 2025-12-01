@@ -65,8 +65,18 @@ def _grant_profile_access(profile):
     access[profile.lower()] = True
     session['profile_access'] = access
 
+def _revoke_profile_access(profile=None):
+    access = session.get('profile_access', {})
+    if profile:
+        access.pop(profile.lower(), None)
+    else:
+        access = {}
+    session['profile_access'] = access
+
 def _ensure_profile_access(profile):
     settings = get_profile_settings(profile)
+    if profile.lower() == "default":
+        return True
     if settings.get('is_private') and not _has_profile_access(profile):
         return False
     return True
@@ -154,12 +164,11 @@ def process_and_email_task(app, input_filepath, output_filepath, email, profile)
 @app.route('/')
 def index():
     profiles = storage.list_profiles()
-    # Redirect to the first profile if one exists, or handle no profiles case
     if profiles:
-        return redirect(url_for('profile_view', profile=profiles[0]))
-    else:
-        # Optionally, handle the case with no profiles, e.g., show a setup page
-        return "No profiles found. Please create a profile."
+        default = "default" if "default" in profiles else profiles[0]
+        return redirect(url_for('profile_view', profile=default))
+    # Optionally, handle the case with no profiles, e.g., show a setup page
+    return "No profiles found. Please create a profile."
 
 @app.route('/profiles', methods=['POST'])
 def create_profile_route():
@@ -195,6 +204,7 @@ def delete_profile_route(profile):
             return jsonify({'error': 'Password required or incorrect.'}), 401
     try:
         delete_profile(profile)
+        _revoke_profile_access(profile)
     except NotFoundError as err:
         return jsonify({'error': str(err)}), 404
     except ValueError as err:
@@ -254,6 +264,16 @@ def profile_verify_password_route(profile):
         _grant_profile_access(profile)
     return jsonify({'ok': bool(ok)}), 200
 
+@app.route('/logout', methods=['POST'])
+def logout_route():
+    payload = request.get_json(silent=True) or {}
+    profile = (payload.get('profile') or '').strip().lower() or None
+    if profile:
+        _revoke_profile_access(profile)
+    else:
+        _revoke_profile_access()
+    return jsonify({'ok': True}), 200
+
 @app.route('/profiles/<profile>/settings/protect-deletion', methods=['POST'])
 def profile_protect_deletion_route(profile):
     if not _ensure_profile_access(profile):
@@ -291,10 +311,13 @@ def profile_view(profile):
     profiles = storage.list_profiles()
     if profile not in profiles:
         return f"Profile '{profile}' not found.", 404
-    if not _ensure_profile_access(profile):
-        return "Unauthorized for this profile.", 401
-    categories = load_categories(profile)
-    return render_template('index.html', categories=categories, profile=profile, profiles=profiles)
+    needs_password = False
+    categories = []
+    if profile.lower() == "default" or _ensure_profile_access(profile):
+        categories = load_categories(profile)
+    else:
+        needs_password = True
+    return render_template('index.html', categories=categories, profile=profile, profiles=profiles, needs_password=needs_password)
 
 @app.route('/<profile>/categories', methods=['GET', 'POST'])
 def categories_collection(profile):

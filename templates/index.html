@@ -91,6 +91,25 @@
             justify-content: flex-end;
             gap: 10px;
         }
+
+        .lock-button {
+            background-color: #6c757d;
+            color: #fff;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            width: 44px;
+            height: 44px;
+        }
+
+        .lock-button:hover {
+            background-color: #5a6268;
+        }
         select,
         input[type="file"],
         input[type="email"] {
@@ -281,7 +300,12 @@
 </head>
 <body>
     <div class="container">
-        <h1>Upload Transactions for Categorization</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+            <h1>Upload Transactions for Categorization</h1>
+            {% if profile != 'default' and not needs_password %}
+            <button type="button" id="lock-profile" class="lock-button" title="Lock/Logout">🔒</button>
+            {% endif %}
+        </div>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -352,6 +376,7 @@
     </div>
 
 
+    {% if profile != 'default' %}
     <div class="container">
         <h2 class="collapsible-header" data-target="settings-content">Settings <span class="collapse-icon">&#9658;</span></h2>
         <div id="settings-content" class="collapsible-content" style="display: none;">
@@ -379,6 +404,7 @@
             <button type="button" id="delete-profile" class="danger-button" style="width: 100%;">Delete Profile</button>
         </div>
     </div>
+    {% endif %}
 
     <div class="modal-overlay" id="password-modal">
         <div class="modal">
@@ -397,6 +423,7 @@
         let initialRules = {};
         let profileSettings = { is_private: false, has_password: false, protect_deletion: false };
         let categoriesUnlocked = true;
+        const requiresPassword = {{ needs_password | default(false) | tojson }};
         initialCategories = initialCategories.map(cat => ({
             name: cat.name,
             budget: Number(cat.budget)
@@ -416,6 +443,7 @@
             const customColumnsToggle = document.getElementById('custom-columns-toggle');
             const descriptionColumnInput = document.getElementById('description-column');
             const amountColumnInput = document.getElementById('amount-column');
+            const lockProfileButton = document.getElementById('lock-profile');
             const passwordModal = document.getElementById('password-modal');
             const passwordModalInput = document.getElementById('password-modal-input');
             const passwordModalOk = document.getElementById('password-modal-ok');
@@ -501,34 +529,7 @@
                     }
                     if (selectedProfile) {
                         try {
-                            const settingsResp = await fetch(`/profiles/${encodeURIComponent(selectedProfile)}/settings`);
-                            if (!settingsResp.ok) {
-                                throw new Error('Unable to load profile settings.');
-                            }
-                            const settings = await settingsResp.json();
-                            if (settings.is_private) {
-                                const password = await promptPassword(`Enter password for "${selectedProfile}":`);
-                                if (!password) {
-                                    this.value = activeProfile;
-                                    return;
-                                }
-                                const verifyResp = await fetch(`/profiles/${encodeURIComponent(selectedProfile)}/settings/verify`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ password })
-                                });
-                                if (!verifyResp.ok) {
-                                    alert('Incorrect password.');
-                                    this.value = activeProfile;
-                                    return;
-                                }
-                                const verifyData = await verifyResp.json();
-                                if (!verifyData.ok) {
-                                    alert('Incorrect password.');
-                                    this.value = activeProfile;
-                                    return;
-                                }
-                            }
+                            // We let the destination page handle any password prompt.
                             window.location.href = '/' + selectedProfile;
                         } catch (err) {
                             console.error(err);
@@ -573,15 +574,20 @@
             const loadProfileSettings = async () => {
                 try {
                     const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings`);
+                    if (response.status === 401) {
+                        return false;
+                    }
                     if (!response.ok) {
-                        return;
+                        return false;
                     }
                     const data = await response.json();
                     profileSettings = data;
                     categoriesUnlocked = !profileSettings.is_private;
                     updateSettingsUI();
+                    return true;
                 } catch (err) {
                     console.error(err);
+                    return false;
                 }
             };
 
@@ -1047,12 +1053,16 @@
                 });
             }
 
-            // Rules Editor - Load Rules
-            fetch('/' + encodeURIComponent(activeProfile) + '/rules')
-                .then(response => response.json())
-                .then(rules => {
+            const loadRules = async () => {
+                try {
+                    const response = await fetch('/' + encodeURIComponent(activeProfile) + '/rules');
+                    if (!response.ok) {
+                        return;
+                    }
+                    const rules = await response.json();
                     initialRules = { ...rules };
                     const container = document.getElementById('rules-container');
+                    container.innerHTML = '';
                     for (const keyword in rules) {
                         const category = rules[keyword];
                         const newItem = document.createElement('div');
@@ -1064,7 +1074,10 @@
                         `;
                         container.appendChild(newItem);
                     }
-                });
+                } catch (err) {
+                    console.error(err);
+                }
+            };
 
             // Add Rule Button
             document.getElementById('add-rule').addEventListener('click', function() {
@@ -1163,7 +1176,60 @@
                 saveRules();
             });
 
-            loadProfileSettings();
+            const ensureAccess = async () => {
+                if (!requiresPassword) {
+                    return;
+                }
+                const password = await promptPassword(`Enter password for "${activeProfile}":`);
+                if (!password) {
+                    alert('Password is required to access this profile.');
+                    window.location.href = '/';
+                    return;
+                }
+                try {
+                    const verifyResp = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/verify`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password })
+                    });
+                    if (!verifyResp.ok) {
+                        alert('Incorrect password.');
+                        window.location.href = '/';
+                        return;
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Error verifying password.');
+                    window.location.href = '/';
+                }
+                // Reload to pull data now that session is authorized
+                window.location.reload();
+            };
+
+            const init = async () => {
+                if (requiresPassword) {
+                    await ensureAccess();
+                    return; // reload will occur
+                }
+                await loadProfileSettings();
+                await loadRules();
+            };
+
+            init();
+
+            lockProfileButton?.addEventListener('click', async function() {
+                try {
+                    await fetch('/logout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ profile: activeProfile })
+                    });
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    window.location.href = '/';
+                }
+            });
         });
     </script>
 </body>
