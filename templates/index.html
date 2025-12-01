@@ -419,7 +419,14 @@
 
     <script>
         const activeProfile = {{ profile | tojson }};
-        const basePath = '/rabbitbudget';
+        let basePath = {{ (root_path or '') | tojson }};
+        if (!basePath) {
+            const trimmed = window.location.pathname.replace(/\/+$/, '');
+            basePath = trimmed.replace(/\/[^\/]+$/, '') || '';
+        }
+        if (basePath && !basePath.startsWith('/')) {
+            basePath = '/' + basePath;
+        }
         let initialCategories = {{ categories | tojson }};
         let initialRules = {};
         let profileSettings = { is_private: false, has_password: false, protect_deletion: false };
