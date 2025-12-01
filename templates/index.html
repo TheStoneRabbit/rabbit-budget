@@ -419,14 +419,7 @@
 
     <script>
         const activeProfile = {{ profile | tojson }};
-        let basePath = {{ (root_path or '') | tojson }};
-        if (!basePath) {
-            // Default deployment prefix
-            basePath = '/rabbitbudget';
-        }
-        if (basePath && !basePath.startsWith('/')) {
-            basePath = '/' + basePath;
-        }
+        const basePath = '/rabbitbudget';
         let initialCategories = {{ categories | tojson }};
         let initialRules = {};
         let profileSettings = { is_private: false, has_password: false, protect_deletion: false };

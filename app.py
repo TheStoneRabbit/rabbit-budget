@@ -21,7 +21,7 @@ from urllib.parse import unquote
 # Load environment variables from .env file
 load_dotenv()
 
-ROOT_PATH = (os.getenv("ROOT_PATH") or "").strip()
+ROOT_PATH = (os.getenv("ROOT_PATH") or "/rabbitbudget").strip()
 if ROOT_PATH.endswith("/"):
     ROOT_PATH = ROOT_PATH[:-1]
 if ROOT_PATH and not ROOT_PATH.startswith("/"):
