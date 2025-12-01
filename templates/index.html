@@ -159,6 +159,19 @@
         .rule-item button:hover {
             background-color: #c82333;
         }
+
+        .category-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .category-total {
+            font-weight: bold;
+            color: #333;
+        }
     </style>
 </head>
 <body>
@@ -202,8 +215,11 @@
                     </div>
                     {% endfor %}
                 </div>
-                <button type="button" id="add-category">Add Category</button>
-                <button type="button" id="save-categories">Save Categories</button>
+                <div class="category-actions">
+                    <button type="button" id="add-category">Add Category</button>
+                    <button type="button" id="save-categories">Save Categories</button>
+                    <div class="category-total">Total: <span id="category-total-value">$0.00</span></div>
+                </div>
             </form>
         </div>
     </div>
@@ -306,12 +322,14 @@
                     <button type="button" class="remove-category">Remove</button>
                 `;
                 container.appendChild(newItem);
+                updateCategoryTotal();
             });
 
             // Remove Category Button
             document.getElementById('categories-container').addEventListener('click', function(e) {
                 if (e.target.classList.contains('remove-category')) {
                     e.target.parentElement.remove();
+                    updateCategoryTotal();
                 }
             });
 
@@ -333,6 +351,20 @@
                 });
                 return categories;
             };
+
+            const updateCategoryTotal = () => {
+                const total = getCurrentCategories().reduce((sum, cat) => sum + (Number.isFinite(cat.budget) ? cat.budget : 0), 0);
+                const totalEl = document.getElementById('category-total-value');
+                if (totalEl) {
+                    totalEl.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(total);
+                }
+            };
+
+            document.getElementById('categories-container').addEventListener('input', function(e) {
+                if (e.target.name === 'category-budget') {
+                    updateCategoryTotal();
+                }
+            });
 
             const saveCategories = async () => {
                 const currentCategories = getCurrentCategories();
@@ -420,6 +452,8 @@
             saveCategoriesButton?.addEventListener('click', function() {
                 saveCategories();
             });
+
+            updateCategoryTotal();
 
             // Rule Search
             const ruleSearch = document.getElementById('rule-search');
