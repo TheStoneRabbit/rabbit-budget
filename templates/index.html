@@ -419,6 +419,7 @@
 
     <script>
         const activeProfile = {{ profile | tojson }};
+        const basePath = {{ (root_path or '') | tojson }};
         let initialCategories = {{ categories | tojson }};
         let initialRules = {};
         let profileSettings = { is_private: false, has_password: false, protect_deletion: false };
