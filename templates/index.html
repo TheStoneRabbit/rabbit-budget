@@ -33,6 +33,24 @@
             align-items: center;
             gap: 10px;
         }
+        .danger-button {
+            background-color: #dc3545;
+            color: #fff;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .danger-button:hover {
+            background-color: #c82333;
+        }
+
+        .danger-label {
+            color: #dc3545;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
         select,
         input[type="file"],
         input[type="email"] {
@@ -248,6 +266,13 @@
     </div>
 
     
+    <div class="container">
+        <h2 class="collapsible-header" data-target="danger-content">DANGER ZONE <span class="collapse-icon">&#9658;</span></h2>
+        <div id="danger-content" class="collapsible-content" style="display: none;">
+            <button type="button" id="delete-profile" class="danger-button" style="width: 100%;">Delete Profile</button>
+        </div>
+    </div>
+
     <script>
         const activeProfile = {{ profile | tojson }};
         let initialCategories = {{ categories | tojson }};
@@ -262,6 +287,7 @@
             const uploadForm = document.getElementById('upload-form');
             const saveCategoriesButton = document.getElementById('save-categories');
             const saveRulesButton = document.getElementById('save-rules');
+            const deleteProfileButton = document.getElementById('delete-profile');
 
             if (profileSelect) {
                 profileSelect.addEventListener('change', function() {
@@ -507,6 +533,31 @@
                             item.style.display = 'none';
                         }
                     });
+                });
+            }
+
+            if (deleteProfileButton) {
+                deleteProfileButton.addEventListener('click', async function() {
+                    const confirmed = confirm(`Delete profile "${activeProfile}"? This cannot be undone.`);
+                    if (!confirmed) {
+                        return;
+                    }
+                    try {
+                        const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}`, {
+                            method: 'DELETE'
+                        });
+                        if (response.status === 404) {
+                            alert('Profile not found.');
+                            return;
+                        }
+                        if (!response.ok) {
+                            throw new Error('Failed to delete profile');
+                        }
+                        window.location.href = '/';
+                    } catch (err) {
+                        console.error(err);
+                        alert('Error deleting profile.');
+                    }
                 });
             }
 

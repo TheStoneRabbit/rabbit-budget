@@ -105,6 +105,22 @@ def create_profile(name: str) -> Dict[str, str]:
         session.flush()
         return {"name": profile.name}
 
+def delete_profile(name: str) -> None:
+    normalized = (name or "").strip()
+    if not normalized:
+        raise ValueError("Profile name is required.")
+
+    with session_scope() as session:
+        profile = (
+            session.query(Profile)
+            .filter(func.lower(Profile.name) == normalized.lower())
+            .one_or_none()
+        )
+        if profile is None:
+            raise NotFoundError(f"Profile '{normalized}' not found.")
+
+        session.delete(profile)
+
 
 def _bootstrap_from_json(base_path: str = "profiles") -> None:
     """Backfill the database from the existing JSON directory, if empty."""

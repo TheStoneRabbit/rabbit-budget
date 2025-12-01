@@ -22,7 +22,7 @@ from transaction_processor import (
 )
 
 import storage
-from storage import ConflictError, NotFoundError, create_profile
+from storage import ConflictError, NotFoundError, create_profile, delete_profile
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "supersecretkey") # Replace with a strong secret key
@@ -134,6 +134,17 @@ def create_profile_route():
         return jsonify({'error': str(err)}), 400
 
     return jsonify(profile), 201
+
+@app.route('/profiles/<profile>', methods=['DELETE'])
+def delete_profile_route(profile):
+    try:
+        delete_profile(profile)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+
+    return '', 204
 
 
 @app.route('/<profile>')
