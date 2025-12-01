@@ -466,13 +466,24 @@
                             this.value = activeProfile;
                             return;
                         }
+                        const adminPassword = await promptPassword('Enter admin password to create a profile:');
+                        if (!adminPassword) {
+                            this.value = activeProfile;
+                            return;
+                        }
                         fetch('/profiles', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ name })
+                            body: JSON.stringify({ name, admin_password: adminPassword })
                         }).then(async (response) => {
                             if (response.status === 409) {
                                 alert('A profile with that name already exists.');
+                                this.value = activeProfile;
+                                return;
+                            }
+                            if (response.status === 403) {
+                                const error = await response.json().catch(() => ({}));
+                                alert(error.error || 'Admin password required or incorrect.');
                                 this.value = activeProfile;
                                 return;
                             }

@@ -53,6 +53,7 @@ uv run python main.py uploads/source.csv uploads/output.csv --profile Mason
 | `EMAIL_PASSWORD`    | yes      | SMTP password or app token.                              |
 | `OPENAI_API_KEY`    | yes      | Used for GPT-based categorization fallback.              |
 | `DATABASE_URL`      | no       | SQLAlchemy URI (defaults to `sqlite:///rabbit.db`).      |
+| `ADMIN_PASSWORD`    | yes*     | Required to create new profiles via the UI/API.          |
 
 ## Data model
 
