@@ -508,7 +508,7 @@
                             this.value = activeProfile;
                             return;
                         }
-                        fetch(`${basePath}/profiles`, {
+                        fetch(`/profiles`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ name, admin_password: adminPassword })
@@ -528,7 +528,7 @@
                                 throw new Error('Failed to create profile');
                             }
                             const data = await response.json();
-                            window.location.href = `${basePath}/` + encodeURIComponent(data.name);
+                            window.location.href = '/' + encodeURIComponent(data.name);
                         }).catch(err => {
                             console.error(err);
                             alert('Error creating profile.');
@@ -538,41 +538,7 @@
                     }
                     if (selectedProfile) {
                         try {
-                            const settingsResp = await fetch(`${basePath}/profiles/${encodeURIComponent(selectedProfile)}/settings`);
-                            if (settingsResp.status === 401) {
-                                // Needs password; fall through to prompt
-                            } else if (!settingsResp.ok) {
-                                throw new Error('Unable to load profile settings.');
-                            } else {
-                                const settings = await settingsResp.json();
-                                if (!settings.is_private) {
-                                    window.location.href = `${basePath}/` + selectedProfile;
-                                    return;
-                                }
-                            }
-
-                            const password = await promptPassword(`Enter password for "${selectedProfile}":`);
-                            if (!password) {
-                                this.value = activeProfile;
-                                return;
-                            }
-                            const verifyResp = await fetch(`${basePath}/profiles/${encodeURIComponent(selectedProfile)}/settings/verify`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ password })
-                            });
-                            if (!verifyResp.ok) {
-                                alert('Incorrect password.');
-                                this.value = activeProfile;
-                                return;
-                            }
-                            const verifyData = await verifyResp.json();
-                            if (!verifyData.ok) {
-                                alert('Incorrect password.');
-                                this.value = activeProfile;
-                                return;
-                            }
-                            window.location.href = `${basePath}/` + selectedProfile;
+                            window.location.href = '/' + selectedProfile;
                         } catch (err) {
                             console.error(err);
                             alert('Error loading profile.');
