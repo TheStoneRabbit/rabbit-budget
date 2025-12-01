@@ -421,10 +421,8 @@
         const activeProfile = {{ profile | tojson }};
         let basePath = {{ (root_path or '') | tojson }};
         if (!basePath) {
-            const trimmed = window.location.pathname.replace(/\/+$/, '');
-            const marker = '/' + encodeURIComponent(activeProfile);
-            const idx = trimmed.lastIndexOf(marker);
-            basePath = idx > 0 ? trimmed.slice(0, idx) : '';
+            // Default deployment prefix
+            basePath = '/rabbitbudget';
         }
         if (basePath && !basePath.startsWith('/')) {
             basePath = '/' + basePath;
