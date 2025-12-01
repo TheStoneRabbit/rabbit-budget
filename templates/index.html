@@ -432,6 +432,7 @@
         let profileSettings = { is_private: false, has_password: false, protect_deletion: false };
         let categoriesUnlocked = true;
         const requiresPassword = {{ needs_password | default(false) | tojson }};
+        const basePath = '';
         initialCategories = initialCategories.map(cat => ({
             name: cat.name,
             budget: Number(cat.budget)
