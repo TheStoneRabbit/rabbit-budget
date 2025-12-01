@@ -21,6 +21,12 @@ from urllib.parse import unquote
 # Load environment variables from .env file
 load_dotenv()
 
+ROOT_PATH = (os.getenv("ROOT_PATH") or "").strip()
+if ROOT_PATH.endswith("/"):
+    ROOT_PATH = ROOT_PATH[:-1]
+if ROOT_PATH and not ROOT_PATH.startswith("/"):
+    ROOT_PATH = "/" + ROOT_PATH
+
 from transaction_processor import (
     process_transactions,
     load_categories,
@@ -57,11 +63,6 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", 587)) # Default to 587 for TLS
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
-ROOT_PATH = (os.getenv("ROOT_PATH") or "").strip()
-if ROOT_PATH.endswith("/"):
-    ROOT_PATH = ROOT_PATH[:-1]
-if ROOT_PATH and not ROOT_PATH.startswith("/"):
-    ROOT_PATH = "/" + ROOT_PATH
 
 def _prefixed(path: str) -> str:
     if not ROOT_PATH:
