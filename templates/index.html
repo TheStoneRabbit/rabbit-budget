@@ -1045,7 +1045,7 @@
                         if (!response.ok) {
                             throw new Error('Failed to delete profile');
                         }
-                        window.location.href = '/';
+                        window.location.href = `${basePath}/`;
                     } catch (err) {
                         console.error(err);
                         alert('Error deleting profile.');
@@ -1183,7 +1183,7 @@
                 const password = await promptPassword(`Enter password for "${activeProfile}":`);
                 if (!password) {
                     alert('Password is required to access this profile.');
-                    window.location.href = '/';
+                    window.location.href = `${basePath}/`;
                     return;
                 }
                 try {
@@ -1194,13 +1194,13 @@
                     });
                     if (!verifyResp.ok) {
                         alert('Incorrect password.');
-                        window.location.href = '/';
+                        window.location.href = `${basePath}/`;
                         return;
                     }
                 } catch (err) {
                     console.error(err);
                     alert('Error verifying password.');
-                    window.location.href = '/';
+                    window.location.href = `${basePath}/`;
                 }
                 // Reload to pull data now that session is authorized
                 window.location.reload();
@@ -1227,7 +1227,7 @@
                 } catch (err) {
                     console.error(err);
                 } finally {
-                    window.location.href = '/';
+                    window.location.href = `${basePath}/default`;
                 }
             });
         });
