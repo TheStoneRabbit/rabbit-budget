@@ -499,7 +499,7 @@
                             this.value = activeProfile;
                             return;
                         }
-                        fetch('/profiles', {
+                        fetch(`${basePath}/profiles`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ name, admin_password: adminPassword })
@@ -519,7 +519,7 @@
                                 throw new Error('Failed to create profile');
                             }
                             const data = await response.json();
-                            window.location.href = '/' + encodeURIComponent(data.name);
+                            window.location.href = `${basePath}/` + encodeURIComponent(data.name);
                         }).catch(err => {
                             console.error(err);
                             alert('Error creating profile.');
@@ -530,7 +530,7 @@
                     if (selectedProfile) {
                         try {
                             // We let the destination page handle any password prompt.
-                            window.location.href = '/' + selectedProfile;
+                            window.location.href = `${basePath}/` + selectedProfile;
                         } catch (err) {
                             console.error(err);
                             alert('Error loading profile.');
@@ -544,7 +544,7 @@
                 uploadForm.addEventListener('submit', function(e) {
                     const selectedProfile = profileSelect.value;
                     if (selectedProfile) {
-                        this.action = '/' + selectedProfile + '/upload';
+                        this.action = `${basePath}/` + selectedProfile + '/upload';
                     }
                 });
             }
@@ -573,7 +573,7 @@
 
             const loadProfileSettings = async () => {
                 try {
-                    const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings`);
+                    const response = await fetch(`${basePath}/profiles/${encodeURIComponent(activeProfile)}/settings`);
                     if (response.status === 401) {
                         return false;
                     }
@@ -605,7 +605,7 @@
                         return;
                     }
                     try {
-                        const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/privacy`, {
+                        const response = await fetch(`${basePath}/profiles/${encodeURIComponent(activeProfile)}/settings/privacy`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ is_private: true, password })
@@ -634,7 +634,7 @@
                         return;
                     }
                     try {
-                        const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/privacy`, {
+                        const response = await fetch(`${basePath}/profiles/${encodeURIComponent(activeProfile)}/settings/privacy`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ is_private: false, password })
@@ -658,7 +658,7 @@
                 const desc = descriptionColumnInput?.value || '';
                 const amt = amountColumnInput?.value || '';
                 try {
-                    const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/columns`, {
+                    const response = await fetch(`${basePath}/profiles/${encodeURIComponent(activeProfile)}/settings/columns`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -712,7 +712,7 @@
                     return;
                 }
                 try {
-                    const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/change-password`, {
+                    const response = await fetch(`${basePath}/profiles/${encodeURIComponent(activeProfile)}/settings/change-password`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
@@ -741,7 +741,7 @@
                     passwordParam = `?password=${encodeURIComponent(password)}`;
                 }
                 try {
-                    const response = await fetch(`/${encodeURIComponent(activeProfile)}/categories/export${passwordParam}`);
+                    const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/categories/export${passwordParam}`);
                     if (response.status === 401) {
                         alert('Password required or incorrect.');
                         return;
@@ -792,7 +792,7 @@
                 }
 
                 try {
-                    const response = await fetch(`/${encodeURIComponent(activeProfile)}/categories/import`, {
+                    const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/categories/import`, {
                         method: 'POST',
                         body: formData
                     });
@@ -937,7 +937,7 @@
 
                 try {
                     for (const name of toDelete) {
-                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/categories/${encodeURIComponent(name)}`, {
+                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/categories/${encodeURIComponent(name)}`, {
                             method: 'DELETE'
                         });
                         if (!response.ok && response.status !== 204) {
@@ -947,7 +947,7 @@
 
                     for (const entry of toUpdate) {
                         const targetName = entry.originalName || entry.name;
-                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/categories/${encodeURIComponent(targetName)}`, {
+                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/categories/${encodeURIComponent(targetName)}`, {
                             method: 'PATCH',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -963,7 +963,7 @@
                     }
 
                     for (const entry of toCreate) {
-                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/categories`, {
+                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/categories`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -1031,7 +1031,7 @@
                         password = provided;
                     }
                     try {
-                        const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}`, {
+                        const response = await fetch(`${basePath}/profiles/${encodeURIComponent(activeProfile)}`, {
                             method: 'DELETE',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -1055,7 +1055,7 @@
 
             const loadRules = async () => {
                 try {
-                    const response = await fetch('/' + encodeURIComponent(activeProfile) + '/rules');
+                    const response = await fetch(`${basePath}/` + encodeURIComponent(activeProfile) + '/rules');
                     if (!response.ok) {
                         return;
                     }
@@ -1124,7 +1124,7 @@
 
                 try {
                     for (const key of toDelete) {
-                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/rules/${encodeURIComponent(key)}`, {
+                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/rules/${encodeURIComponent(key)}`, {
                             method: 'DELETE'
                         });
                         if (!response.ok && response.status !== 204) {
@@ -1133,7 +1133,7 @@
                     }
 
                     for (const key of toUpdate) {
-                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/rules/${encodeURIComponent(key)}`, {
+                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/rules/${encodeURIComponent(key)}`, {
                             method: 'PATCH',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -1149,7 +1149,7 @@
                     }
 
                     for (const key of toCreate) {
-                        const response = await fetch(`/${encodeURIComponent(activeProfile)}/rules`, {
+                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/rules`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -1187,7 +1187,7 @@
                     return;
                 }
                 try {
-                    const verifyResp = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/verify`, {
+                    const verifyResp = await fetch(`${basePath}/profiles/${encodeURIComponent(activeProfile)}/settings/verify`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ password })
@@ -1219,7 +1219,7 @@
 
             lockProfileButton?.addEventListener('click', async function() {
                 try {
-                    await fetch('/logout', {
+                    await fetch(`${basePath}/logout`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ profile: activeProfile })

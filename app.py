@@ -11,6 +11,7 @@ from email import encoders
 from email.header import Header
 import pandas as pd
 from flask import Flask, request, render_template, flash, redirect, url_for, jsonify, session
+from werkzeug.wrappers import Response
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
@@ -43,6 +44,8 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "supersecretkey") # Replace with a strong secret key
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload size
+if ROOT_PATH:
+    app.config['APPLICATION_ROOT'] = ROOT_PATH
 
 # Ensure the upload folder exists
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
@@ -54,6 +57,16 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", 587)) # Default to 587 for TLS
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+ROOT_PATH = (os.getenv("ROOT_PATH") or "").strip()
+if ROOT_PATH.endswith("/"):
+    ROOT_PATH = ROOT_PATH[:-1]
+if ROOT_PATH and not ROOT_PATH.startswith("/"):
+    ROOT_PATH = "/" + ROOT_PATH
+
+def _prefixed(path: str) -> str:
+    if not ROOT_PATH:
+        return path
+    return ROOT_PATH + path
 
 storage.init_db()
 
@@ -80,6 +93,23 @@ def _ensure_profile_access(profile):
     if settings.get('is_private') and not _has_profile_access(profile):
         return False
     return True
+
+if ROOT_PATH:
+    class PrefixMiddleware:
+        def __init__(self, app, prefix):
+            self.app = app
+            self.prefix = prefix
+
+        def __call__(self, environ, start_response):
+            path = environ.get('PATH_INFO', '')
+            if path.startswith(self.prefix):
+                environ['PATH_INFO'] = path[len(self.prefix):] or '/'
+                environ['SCRIPT_NAME'] = environ.get('SCRIPT_NAME', '') + self.prefix
+                return self.app(environ, start_response)
+            resp = Response('Not Found', status=404)
+            return resp(environ, start_response)
+
+    app.wsgi_app = PrefixMiddleware(app.wsgi_app, ROOT_PATH)
 
 def _parse_budget(value):
     try:
@@ -166,7 +196,7 @@ def index():
     profiles = storage.list_profiles()
     if profiles:
         default = "default" if "default" in profiles else profiles[0]
-        return redirect(url_for('profile_view', profile=default))
+        return redirect(_prefixed(url_for('profile_view', profile=default)))
     # Optionally, handle the case with no profiles, e.g., show a setup page
     return "No profiles found. Please create a profile."
 
@@ -317,7 +347,7 @@ def profile_view(profile):
         categories = load_categories(profile)
     else:
         needs_password = True
-    return render_template('index.html', categories=categories, profile=profile, profiles=profiles, needs_password=needs_password)
+    return render_template('index.html', categories=categories, profile=profile, profiles=profiles, needs_password=needs_password, root_path=ROOT_PATH)
 
 @app.route('/<profile>/categories', methods=['GET', 'POST'])
 def categories_collection(profile):
