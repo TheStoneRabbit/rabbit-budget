@@ -554,11 +554,16 @@
                         this.checked = true;
                         return;
                     }
+                    const password = await promptPassword('Enter password to disable privacy:');
+                    if (!password) {
+                        this.checked = true;
+                        return;
+                    }
                     try {
                         const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/privacy`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ is_private: false })
+                            body: JSON.stringify({ is_private: false, password })
                         });
                         if (!response.ok) {
                             throw new Error('Failed to disable privacy');

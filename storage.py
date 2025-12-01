@@ -171,6 +171,8 @@ def set_profile_privacy(profile_name: str, is_private: bool, password: Optional[
             settings.password_hash = generate_password_hash(password)
             settings.is_private = True
         else:
+            if settings.password_hash and not check_password_hash(settings.password_hash, password or ""):
+                raise ValueError("Current password is incorrect.")
             settings.is_private = False
             settings.password_hash = None
 
