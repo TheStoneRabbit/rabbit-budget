@@ -1,5 +1,8 @@
 import os
 import smtplib
+import io
+import csv
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -92,6 +95,8 @@ def process_and_email_task(app, input_filepath, output_filepath, email, profile)
         try:
             # Process the transactions
             processed_file_path = process_transactions(input_filepath, output_filepath, profile)
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            attachment_name = f"{profile}_{timestamp}.csv"
 
             summary_text = build_category_summary(processed_file_path)
             body_lines = ["Please find your categorized transactions report attached."]
@@ -106,7 +111,8 @@ def process_and_email_task(app, input_filepath, output_filepath, email, profile)
                 recipient_email=email,
                 subject="Your Categorized Transactions Report",
                 body=body,
-                attachment_path=processed_file_path
+                attachment_path=processed_file_path,
+                attachment_name=attachment_name
             )
             print(f"Successfully processed and sent email to {email}")
         except Exception as e:
@@ -238,6 +244,37 @@ def categories_collection(profile):
         return jsonify({'error': str(err)}), 400
 
     return jsonify(new_category), 201
+
+@app.route('/<profile>/categories/export', methods=['GET'])
+def export_categories(profile):
+    password = request.args.get('password', '')
+    try:
+        settings = get_profile_settings(profile)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+
+    if settings.get('is_private'):
+        if not verify_profile_password(profile, password):
+            return jsonify({'error': 'Password required or incorrect.'}), 401
+
+    try:
+        categories = storage.list_categories(profile)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Name', 'Budget'])
+    for c in categories:
+        writer.writerow([c['name'], c['budget']])
+    output.seek(0)
+
+    filename = f"{profile}_categories_{time.strftime('%Y%m%d_%H%M%S')}.csv"
+    return app.response_class(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename=\"{filename}\"'}
+    )
 
 @app.route('/<profile>/categories/<category_name>', methods=['PATCH', 'DELETE'])
 def category_item(profile, category_name):
@@ -381,7 +418,7 @@ def upload_file(profile):
         flash('Invalid file type. Please upload a CSV file.', 'error')
         return redirect(url_for('profile_view', profile=profile))
 
-def send_email(recipient_email, subject, body, attachment_path=None):
+def send_email(recipient_email, subject, body, attachment_path=None, attachment_name=None):
     if not all([SMTP_SERVER, SMTP_PORT, EMAIL_ADDRESS, EMAIL_PASSWORD]):
         raise ValueError("Email configuration is incomplete.")
 
@@ -404,7 +441,7 @@ def send_email(recipient_email, subject, body, attachment_path=None):
                 'Content-Disposition',
                 'attachment',
                 # Don't use Header().encode() – just a plain string is fine
-                filename='results.csv'
+                filename=attachment_name or 'results.csv'
             )
             msg.attach(part)
         except Exception as e:

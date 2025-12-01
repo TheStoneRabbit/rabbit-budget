@@ -236,6 +236,26 @@
             color: #333;
         }
 
+        .category-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+
+        #download-categories {
+            background-color: #6c757d;
+            color: #fff;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        #download-categories:hover {
+            background-color: #5a6268;
+        }
+
         .settings-item {
             margin-bottom: 15px;
         }
@@ -288,6 +308,9 @@
     <div class="container">
         <h2 class="collapsible-header" data-target="categories-content">Manage Categories <span class="collapse-icon">&#9658;</span></h2>
         <div id="categories-content" class="collapsible-content" style="display: none;">
+            <div class="category-toolbar">
+                <button type="button" id="download-categories">Download CSV</button>
+            </div>
             <input type="text" id="category-search" placeholder="Search categories...">
             <form id="category-form">
                 <div id="categories-container">
@@ -370,6 +393,7 @@
             const deleteProfileButton = document.getElementById('delete-profile');
             const privacyToggle = document.getElementById('privacy-toggle');
             const changePasswordButton = document.getElementById('change-password');
+            const downloadCategoriesButton = document.getElementById('download-categories');
             const passwordModal = document.getElementById('password-modal');
             const passwordModalInput = document.getElementById('password-modal-input');
             const passwordModalOk = document.getElementById('password-modal-ok');
@@ -614,6 +638,42 @@
                 } catch (err) {
                     console.error(err);
                     alert(err.message || 'Error changing password.');
+                }
+            });
+
+            downloadCategoriesButton?.addEventListener('click', async function() {
+                let passwordParam = '';
+                if (profileSettings.is_private) {
+                    const password = await promptPassword('Enter password to download categories:');
+                    if (!password) {
+                        return;
+                    }
+                    passwordParam = `?password=${encodeURIComponent(password)}`;
+                }
+                try {
+                    const response = await fetch(`/${encodeURIComponent(activeProfile)}/categories/export${passwordParam}`);
+                    if (response.status === 401) {
+                        alert('Password required or incorrect.');
+                        return;
+                    }
+                    if (!response.ok) {
+                        throw new Error('Failed to download categories.');
+                    }
+                    const blob = await response.blob();
+                    const disposition = response.headers.get('Content-Disposition') || '';
+                    const match = disposition.match(/filename=\"?([^\";]+)\"?/);
+                    const filename = match && match[1] ? match[1] : 'categories.csv';
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                } catch (err) {
+                    console.error(err);
+                    alert('Error downloading categories.');
                 }
             });
 
