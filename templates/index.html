@@ -422,7 +422,12 @@
         let basePath = {{ (root_path or '') | tojson }};
         if (!basePath) {
             const trimmed = window.location.pathname.replace(/\/+$/, '');
-            basePath = trimmed.replace(/\/[^\/]+$/, '') || '';
+            const marker = '/' + encodeURIComponent(activeProfile);
+            const idx = trimmed.lastIndexOf(marker);
+            basePath = idx > 0 ? trimmed.slice(0, idx) : '';
+        }
+        if (basePath && !basePath.startsWith('/')) {
+            basePath = '/' + basePath;
         }
         let initialCategories = {{ categories | tojson }};
         let initialRules = {};
