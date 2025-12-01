@@ -51,6 +51,46 @@
             font-weight: bold;
             margin-bottom: 10px;
         }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: #fff;
+            padding: 20px;
+            border-radius: 6px;
+            width: 320px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .modal input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
         select,
         input[type="file"],
         input[type="email"] {
@@ -196,6 +236,23 @@
             color: #333;
         }
 
+        .settings-item {
+            margin-bottom: 15px;
+        }
+
+        .settings-item label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .settings-hint {
+            color: #666;
+            font-size: 14px;
+            margin: 0;
+        }
+
     </style>
 </head>
 <body>
@@ -267,9 +324,30 @@
 
     
     <div class="container">
-        <h2 class="collapsible-header" data-target="danger-content">DANGER ZONE <span class="collapse-icon">&#9658;</span></h2>
-        <div id="danger-content" class="collapsible-content" style="display: none;">
+        <h2 class="collapsible-header" data-target="settings-content">Settings <span class="collapse-icon">&#9658;</span></h2>
+        <div id="settings-content" class="collapsible-content" style="display: none;">
+            <div class="settings-item">
+                <label>
+                    <input type="checkbox" id="privacy-toggle">
+                    Make Budget Private
+                </label>
+                <p class="settings-hint">Require a password to view Manage Categories.</p>
+            </div>
+            <div class="settings-item">
+                <button type="button" id="change-password">Change Password</button>
+            </div>
             <button type="button" id="delete-profile" class="danger-button" style="width: 100%;">Delete Profile</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="password-modal">
+        <div class="modal">
+            <h3 id="password-modal-title">Enter Password</h3>
+            <input type="password" id="password-modal-input" placeholder="Password">
+            <div class="modal-actions">
+                <button type="button" id="password-modal-cancel">Cancel</button>
+                <button type="button" id="password-modal-ok">OK</button>
+            </div>
         </div>
     </div>
 
@@ -277,6 +355,8 @@
         const activeProfile = {{ profile | tojson }};
         let initialCategories = {{ categories | tojson }};
         let initialRules = {};
+        let profileSettings = { is_private: false, has_password: false };
+        let categoriesUnlocked = true;
         initialCategories = initialCategories.map(cat => ({
             name: cat.name,
             budget: Number(cat.budget)
@@ -288,6 +368,48 @@
             const saveCategoriesButton = document.getElementById('save-categories');
             const saveRulesButton = document.getElementById('save-rules');
             const deleteProfileButton = document.getElementById('delete-profile');
+            const privacyToggle = document.getElementById('privacy-toggle');
+            const changePasswordButton = document.getElementById('change-password');
+            const passwordModal = document.getElementById('password-modal');
+            const passwordModalInput = document.getElementById('password-modal-input');
+            const passwordModalOk = document.getElementById('password-modal-ok');
+            const passwordModalCancel = document.getElementById('password-modal-cancel');
+            const passwordModalTitle = document.getElementById('password-modal-title');
+
+            const promptPassword = (title) => {
+                return new Promise((resolve) => {
+                    if (!passwordModal || !passwordModalInput || !passwordModalOk || !passwordModalCancel) {
+                        const fallback = prompt(title || 'Enter password:');
+                        resolve(fallback || null);
+                        return;
+                    }
+                    passwordModalTitle.textContent = title || 'Enter password';
+                    passwordModal.style.display = 'flex';
+                    passwordModalInput.value = '';
+                    passwordModalInput.focus();
+
+                    const close = (value) => {
+                        passwordModal.style.display = 'none';
+                        passwordModalOk.removeEventListener('click', okHandler);
+                        passwordModalCancel.removeEventListener('click', cancelHandler);
+                        passwordModalInput.removeEventListener('keydown', keyHandler);
+                        resolve(value);
+                    };
+                    const okHandler = () => close(passwordModalInput.value || null);
+                    const cancelHandler = () => close(null);
+                    const keyHandler = (e) => {
+                        if (e.key === 'Enter') {
+                            okHandler();
+                        }
+                        if (e.key === 'Escape') {
+                            cancelHandler();
+                        }
+                    };
+                    passwordModalOk.addEventListener('click', okHandler);
+                    passwordModalCancel.addEventListener('click', cancelHandler);
+                    passwordModalInput.addEventListener('keydown', keyHandler);
+                });
+            };
 
             if (profileSelect) {
                 profileSelect.addEventListener('change', function() {
@@ -335,13 +457,175 @@
                 });
             }
 
+            const updateSettingsUI = () => {
+                if (privacyToggle) {
+                    privacyToggle.checked = !!profileSettings.is_private;
+                }
+                if (changePasswordButton) {
+                    changePasswordButton.disabled = !profileSettings.is_private || !profileSettings.has_password;
+                }
+                if (!profileSettings.is_private) {
+                    categoriesUnlocked = true;
+                }
+            };
+
+            const loadProfileSettings = async () => {
+                try {
+                    const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings`);
+                    if (!response.ok) {
+                        return;
+                    }
+                    const data = await response.json();
+                    profileSettings = data;
+                    categoriesUnlocked = !profileSettings.is_private;
+                    updateSettingsUI();
+                } catch (err) {
+                    console.error(err);
+                }
+            };
+
+            const verifyCategoriesAccess = async () => {
+                if (!profileSettings.is_private || categoriesUnlocked) {
+                    return true;
+                }
+                const password = await promptPassword('Enter password to view Manage Categories:');
+                if (!password) {
+                    return false;
+                }
+                try {
+                    const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/verify`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ password })
+                    });
+                    if (!response.ok) {
+                        throw new Error('Failed to verify password');
+                    }
+                    const data = await response.json();
+                    if (data.ok) {
+                        categoriesUnlocked = true;
+                        return true;
+                    }
+                    alert('Incorrect password.');
+                    return false;
+                } catch (err) {
+                    console.error(err);
+                    alert('Error verifying password.');
+                    return false;
+                }
+            };
+
+            privacyToggle?.addEventListener('change', async function() {
+                if (this.checked) {
+                    const password = await promptPassword('Set a password to protect Manage Categories:');
+                    if (!password) {
+                        this.checked = false;
+                        return;
+                    }
+                    const confirmPassword = await promptPassword('Confirm password:');
+                    if (password !== confirmPassword) {
+                        alert('Passwords do not match.');
+                        this.checked = false;
+                        return;
+                    }
+                    try {
+                        const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/privacy`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ is_private: true, password })
+                        });
+                        if (!response.ok) {
+                            throw new Error('Failed to enable privacy');
+                        }
+                        profileSettings = await response.json();
+                        categoriesUnlocked = false;
+                        updateSettingsUI();
+                        alert('Privacy enabled. Manage Categories will require the password.');
+                    } catch (err) {
+                        console.error(err);
+                        alert('Error enabling privacy.');
+                        this.checked = false;
+                    }
+                } else {
+                    const confirmed = confirm('Disable privacy for this profile?');
+                    if (!confirmed) {
+                        this.checked = true;
+                        return;
+                    }
+                    try {
+                        const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/privacy`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ is_private: false })
+                        });
+                        if (!response.ok) {
+                            throw new Error('Failed to disable privacy');
+                        }
+                        profileSettings = await response.json();
+                        categoriesUnlocked = true;
+                        updateSettingsUI();
+                    } catch (err) {
+                        console.error(err);
+                        alert('Error disabling privacy.');
+                        this.checked = true;
+                    }
+                }
+            });
+
+            changePasswordButton?.addEventListener('click', async function() {
+                if (!profileSettings.is_private) {
+                    alert('Enable privacy first.');
+                    return;
+                }
+                const oldPassword = await promptPassword('Enter current password:');
+                if (!oldPassword) {
+                    return;
+                }
+                const newPassword = await promptPassword('Enter new password:');
+                if (!newPassword) {
+                    return;
+                }
+                const confirmNew = await promptPassword('Confirm new password:');
+                if (newPassword !== confirmNew) {
+                    alert('Passwords do not match.');
+                    return;
+                }
+                try {
+                    const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/change-password`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+                    });
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({}));
+                        const message = error.error || 'Failed to change password';
+                        throw new Error(message);
+                    }
+                    alert('Password updated.');
+                    categoriesUnlocked = false;
+                    updateSettingsUI();
+                } catch (err) {
+                    console.error(err);
+                    alert(err.message || 'Error changing password.');
+                }
+            });
+
 
             // Collapsible Headers
             document.querySelectorAll('.collapsible-header').forEach(header => {
-                header.addEventListener('click', function() {
+                header.addEventListener('click', async function() {
                     const targetId = this.dataset.target;
                     const targetContent = document.getElementById(targetId);
                     const icon = this.querySelector('.collapse-icon');
+
+                    if (targetId === 'categories-content') {
+                        const ok = await verifyCategoriesAccess();
+                        if (!ok) {
+                            return;
+                        }
+                    }
 
                     if (targetContent.style.display === 'none') {
                         targetContent.style.display = 'block';
@@ -676,6 +960,8 @@
             saveRulesButton?.addEventListener('click', function() {
                 saveRules();
             });
+
+            loadProfileSettings();
         });
     </script>
 </body>

@@ -1,10 +1,11 @@
 import json
 import os
 from contextlib import contextmanager
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, UniqueConstraint, create_engine, func
+from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String, UniqueConstraint, create_engine, func
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from werkzeug.security import check_password_hash, generate_password_hash
 
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///rabbit.db")
@@ -36,6 +37,7 @@ class Profile(Base):
 
     categories = relationship("Category", back_populates="profile", cascade="all, delete-orphan")
     rules = relationship("Rule", back_populates="profile", cascade="all, delete-orphan")
+    settings = relationship("ProfileSetting", back_populates="profile", cascade="all, delete-orphan", uselist=False)
 
 
 class Category(Base):
@@ -66,6 +68,17 @@ class Rule(Base):
     __table_args__ = (
         UniqueConstraint("profile_id", "keyword", name="uq_rule_profile_keyword"),
     )
+
+
+class ProfileSetting(Base):
+    __tablename__ = "profile_settings"
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey("profiles.id"), nullable=False, unique=True)
+    is_private = Column(Boolean, default=False)
+    password_hash = Column(String(255), nullable=True)
+
+    profile = relationship("Profile", back_populates="settings")
 
 
 @contextmanager
@@ -103,6 +116,8 @@ def create_profile(name: str) -> Dict[str, str]:
         profile = Profile(name=normalized)
         session.add(profile)
         session.flush()
+        _ensure_settings(session, profile.id)
+        session.flush()
         return {"name": profile.name}
 
 def delete_profile(name: str) -> None:
@@ -120,6 +135,74 @@ def delete_profile(name: str) -> None:
             raise NotFoundError(f"Profile '{normalized}' not found.")
 
         session.delete(profile)
+
+
+def _ensure_settings(session, profile_id: int) -> ProfileSetting:
+    settings = (
+        session.query(ProfileSetting)
+        .filter(ProfileSetting.profile_id == profile_id)
+        .one_or_none()
+    )
+    if settings is None:
+        settings = ProfileSetting(profile_id=profile_id, is_private=False, password_hash=None)
+        session.add(settings)
+        session.flush()
+    return settings
+
+
+def get_profile_settings(profile_name: str) -> Dict[str, Optional[bool]]:
+    with session_scope() as session:
+        profile = _require_profile(session, profile_name)
+        settings = _ensure_settings(session, profile.id)
+        return {
+            "is_private": bool(settings.is_private),
+            "has_password": bool(settings.password_hash),
+        }
+
+
+def set_profile_privacy(profile_name: str, is_private: bool, password: Optional[str]) -> Dict[str, bool]:
+    with session_scope() as session:
+        profile = _require_profile(session, profile_name)
+        settings = _ensure_settings(session, profile.id)
+
+        if is_private:
+            if not password:
+                raise ValueError("Password is required to enable privacy.")
+            settings.password_hash = generate_password_hash(password)
+            settings.is_private = True
+        else:
+            settings.is_private = False
+            settings.password_hash = None
+
+        session.add(settings)
+        session.flush()
+        return {"is_private": bool(settings.is_private), "has_password": bool(settings.password_hash)}
+
+
+def change_profile_password(profile_name: str, old_password: str, new_password: str) -> None:
+    if not new_password:
+        raise ValueError("New password is required.")
+    with session_scope() as session:
+        profile = _require_profile(session, profile_name)
+        settings = _ensure_settings(session, profile.id)
+        if not settings.password_hash or not settings.is_private:
+            raise ValueError("Privacy is not enabled for this profile.")
+        if not old_password or not check_password_hash(settings.password_hash, old_password):
+            raise ValueError("Current password is incorrect.")
+        settings.password_hash = generate_password_hash(new_password)
+        session.add(settings)
+        session.flush()
+
+
+def verify_profile_password(profile_name: str, password: str) -> bool:
+    with session_scope() as session:
+        profile = _require_profile(session, profile_name)
+        settings = _ensure_settings(session, profile.id)
+        if not settings.password_hash or not settings.is_private:
+            return True
+        if not password:
+            return False
+        return check_password_hash(settings.password_hash, password)
 
 
 def _bootstrap_from_json(base_path: str = "profiles") -> None:
@@ -140,6 +223,7 @@ def _bootstrap_from_json(base_path: str = "profiles") -> None:
             profile = Profile(name=entry)
             session.add(profile)
             session.flush()  # ensure profile.id is available
+            _ensure_settings(session, profile.id)
 
             categories_file = os.path.join(profile_path, "categories.json")
             if os.path.exists(categories_file):

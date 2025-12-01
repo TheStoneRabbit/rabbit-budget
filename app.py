@@ -22,7 +22,16 @@ from transaction_processor import (
 )
 
 import storage
-from storage import ConflictError, NotFoundError, create_profile, delete_profile
+from storage import (
+    ConflictError,
+    NotFoundError,
+    change_profile_password,
+    create_profile,
+    delete_profile,
+    get_profile_settings,
+    set_profile_privacy,
+    verify_profile_password,
+)
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "supersecretkey") # Replace with a strong secret key
@@ -145,6 +154,50 @@ def delete_profile_route(profile):
         return jsonify({'error': str(err)}), 400
 
     return '', 204
+
+@app.route('/profiles/<profile>/settings', methods=['GET'])
+def profile_settings_route(profile):
+    try:
+        settings = get_profile_settings(profile)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    return jsonify(settings), 200
+
+@app.route('/profiles/<profile>/settings/privacy', methods=['POST'])
+def profile_privacy_route(profile):
+    payload = request.get_json(silent=True) or {}
+    is_private = bool(payload.get('is_private', False))
+    password = payload.get('password')
+    try:
+        settings = set_profile_privacy(profile, is_private, password)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    except (ValueError, ConflictError) as err:
+        return jsonify({'error': str(err)}), 400
+    return jsonify(settings), 200
+
+@app.route('/profiles/<profile>/settings/change-password', methods=['POST'])
+def profile_change_password_route(profile):
+    payload = request.get_json(silent=True) or {}
+    old_password = payload.get('old_password')
+    new_password = payload.get('new_password')
+    try:
+        change_profile_password(profile, old_password, new_password)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+    return '', 204
+
+@app.route('/profiles/<profile>/settings/verify', methods=['POST'])
+def profile_verify_password_route(profile):
+    payload = request.get_json(silent=True) or {}
+    password = payload.get('password')
+    try:
+        ok = verify_profile_password(profile, password)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    return jsonify({'ok': bool(ok)}), 200
 
 
 @app.route('/<profile>')
