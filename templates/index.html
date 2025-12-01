@@ -239,10 +239,13 @@
         .category-toolbar {
             display: flex;
             justify-content: flex-end;
+            align-items: center;
+            gap: 10px;
             margin-bottom: 10px;
         }
 
-        #download-categories {
+        #download-categories,
+        #import-categories {
             background-color: #6c757d;
             color: #fff;
             padding: 8px 12px;
@@ -252,7 +255,8 @@
             white-space: nowrap;
         }
 
-        #download-categories:hover {
+        #download-categories:hover,
+        #import-categories:hover {
             background-color: #5a6268;
         }
 
@@ -309,7 +313,9 @@
         <h2 class="collapsible-header" data-target="categories-content">Manage Categories <span class="collapse-icon">&#9658;</span></h2>
         <div id="categories-content" class="collapsible-content" style="display: none;">
             <div class="category-toolbar">
+                <button type="button" id="import-categories">Import CSV</button>
                 <button type="button" id="download-categories">Download CSV</button>
+                <input type="file" id="import-file" accept=".csv" style="display:none;">
             </div>
             <input type="text" id="category-search" placeholder="Search categories...">
             <form id="category-form">
@@ -394,6 +400,8 @@
             const privacyToggle = document.getElementById('privacy-toggle');
             const changePasswordButton = document.getElementById('change-password');
             const downloadCategoriesButton = document.getElementById('download-categories');
+            const importCategoriesButton = document.getElementById('import-categories');
+            const importFileInput = document.getElementById('import-file');
             const passwordModal = document.getElementById('password-modal');
             const passwordModalInput = document.getElementById('password-modal-input');
             const passwordModalOk = document.getElementById('password-modal-ok');
@@ -674,6 +682,54 @@
                 } catch (err) {
                     console.error(err);
                     alert('Error downloading categories.');
+                }
+            });
+
+            importCategoriesButton?.addEventListener('click', function() {
+                importFileInput?.click();
+            });
+
+            importFileInput?.addEventListener('change', async function() {
+                if (!this.files || !this.files.length) {
+                    return;
+                }
+                const file = this.files[0];
+                let password = '';
+                if (profileSettings.is_private) {
+                    const provided = await promptPassword('Enter password to import categories:');
+                    if (!provided) {
+                        this.value = '';
+                        return;
+                    }
+                    password = provided;
+                }
+                const formData = new FormData();
+                formData.append('file', file);
+                if (password) {
+                    formData.append('password', password);
+                }
+
+                try {
+                    const response = await fetch(`/${encodeURIComponent(activeProfile)}/categories/import`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.status === 401) {
+                        alert('Password required or incorrect.');
+                        this.value = '';
+                        return;
+                    }
+                    if (!response.ok) {
+                        throw new Error('Failed to import categories.');
+                    }
+                    const result = await response.json();
+                    alert(`Import complete. Added ${result.added} categories.`);
+                    window.location.reload();
+                } catch (err) {
+                    console.error(err);
+                    alert('Error importing categories.');
+                } finally {
+                    this.value = '';
                 }
             });
 

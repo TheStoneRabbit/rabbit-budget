@@ -245,6 +245,51 @@ def categories_collection(profile):
 
     return jsonify(new_category), 201
 
+@app.route('/<profile>/categories/import', methods=['POST'])
+def import_categories(profile):
+    file = request.files.get('file')
+    password = request.form.get('password', '')
+    if not file:
+        return jsonify({'error': 'CSV file is required.'}), 400
+
+    try:
+        settings = get_profile_settings(profile)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+
+    if settings.get('is_private'):
+        if not verify_profile_password(profile, password):
+            return jsonify({'error': 'Password required or incorrect.'}), 401
+
+    try:
+        decoded = file.read().decode('utf-8')
+    except Exception as err:
+        return jsonify({'error': f'Unable to read file: {err}'}), 400
+
+    reader = csv.DictReader(io.StringIO(decoded))
+    added = 0
+    for row in reader:
+        name = (row.get('Name') or row.get('name') or '').strip()
+        budget_raw = row.get('Budget') or row.get('budget') or 0
+        if not name:
+            continue
+        try:
+            budget = float(budget_raw)
+        except (TypeError, ValueError):
+            budget = 0.0
+        try:
+            storage.create_category(profile, name, budget)
+            added += 1
+        except ConflictError:
+            # Skip existing categories to avoid deletion or overwrite
+            continue
+        except NotFoundError as err:
+            return jsonify({'error': str(err)}), 404
+        except ValueError:
+            continue
+
+    return jsonify({'added': added}), 200
+
 @app.route('/<profile>/categories/export', methods=['GET'])
 def export_categories(profile):
     password = request.args.get('password', '')
