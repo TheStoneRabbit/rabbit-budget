@@ -19,6 +19,7 @@ from urllib.parse import unquote
 
 # Load environment variables from .env file
 load_dotenv()
+ROOT_PATH = ""
 
 from transaction_processor import (
     process_transactions,
