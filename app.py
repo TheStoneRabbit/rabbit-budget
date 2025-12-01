@@ -22,7 +22,7 @@ from transaction_processor import (
 )
 
 import storage
-from storage import ConflictError, NotFoundError
+from storage import ConflictError, NotFoundError, create_profile
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "supersecretkey") # Replace with a strong secret key
@@ -118,6 +118,22 @@ def index():
     else:
         # Optionally, handle the case with no profiles, e.g., show a setup page
         return "No profiles found. Please create a profile."
+
+@app.route('/profiles', methods=['POST'])
+def create_profile_route():
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Profile name is required.'}), 400
+
+    try:
+        profile = create_profile(name)
+    except ConflictError as err:
+        return jsonify({'error': str(err)}), 409
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+
+    return jsonify(profile), 201
 
 
 @app.route('/<profile>')
