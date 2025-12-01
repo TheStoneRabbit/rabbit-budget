@@ -55,6 +55,7 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", 587)) # Default to 587 for TLS
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+PREFIX = "/rabbitbudget"
 
 storage.init_db()
 
@@ -162,7 +163,7 @@ def process_and_email_task(app, input_filepath, output_filepath, email, profile)
             if os.path.exists(output_filepath):
                 os.remove(output_filepath)
 
-@app.route('/')
+@app.route(f'{PREFIX}/')
 def index():
     profiles = storage.list_profiles()
     if profiles:
@@ -171,7 +172,7 @@ def index():
     # Optionally, handle the case with no profiles, e.g., show a setup page
     return "No profiles found. Please create a profile."
 
-@app.route('/profiles', methods=['POST'])
+@app.route(f'{PREFIX}/profiles', methods=['POST'])
 def create_profile_route():
     payload = request.get_json(silent=True) or {}
     name = (payload.get('name') or '').strip()
@@ -192,7 +193,7 @@ def create_profile_route():
 
     return jsonify(profile), 201
 
-@app.route('/profiles/<profile>', methods=['DELETE'])
+@app.route(f'{PREFIX}/profiles/<profile>', methods=['DELETE'])
 def delete_profile_route(profile):
     payload = request.get_json(silent=True) or {}
     password = payload.get('password')
@@ -213,7 +214,7 @@ def delete_profile_route(profile):
 
     return '', 204
 
-@app.route('/profiles/<profile>/settings', methods=['GET'])
+@app.route(f'{PREFIX}/profiles/<profile>/settings', methods=['GET'])
 def profile_settings_route(profile):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -223,7 +224,7 @@ def profile_settings_route(profile):
         return jsonify({'error': str(err)}), 404
     return jsonify(settings), 200
 
-@app.route('/profiles/<profile>/settings/privacy', methods=['POST'])
+@app.route(f'{PREFIX}/profiles/<profile>/settings/privacy', methods=['POST'])
 def profile_privacy_route(profile):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -238,7 +239,7 @@ def profile_privacy_route(profile):
         return jsonify({'error': str(err)}), 400
     return jsonify(settings), 200
 
-@app.route('/profiles/<profile>/settings/change-password', methods=['POST'])
+@app.route(f'{PREFIX}/profiles/<profile>/settings/change-password', methods=['POST'])
 def profile_change_password_route(profile):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -253,7 +254,7 @@ def profile_change_password_route(profile):
         return jsonify({'error': str(err)}), 400
     return '', 204
 
-@app.route('/profiles/<profile>/settings/verify', methods=['POST'])
+@app.route(f'{PREFIX}/profiles/<profile>/settings/verify', methods=['POST'])
 def profile_verify_password_route(profile):
     payload = request.get_json(silent=True) or {}
     password = payload.get('password')
@@ -265,7 +266,7 @@ def profile_verify_password_route(profile):
         _grant_profile_access(profile)
     return jsonify({'ok': bool(ok)}), 200
 
-@app.route('/logout', methods=['POST'])
+@app.route(f'{PREFIX}/logout', methods=['POST'])
 def logout_route():
     payload = request.get_json(silent=True) or {}
     profile = (payload.get('profile') or '').strip().lower() or None
@@ -275,7 +276,7 @@ def logout_route():
         _revoke_profile_access()
     return jsonify({'ok': True}), 200
 
-@app.route('/profiles/<profile>/settings/protect-deletion', methods=['POST'])
+@app.route(f'{PREFIX}/profiles/<profile>/settings/protect-deletion', methods=['POST'])
 def profile_protect_deletion_route(profile):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -290,7 +291,7 @@ def profile_protect_deletion_route(profile):
         return jsonify({'error': str(err)}), 400
     return jsonify(settings), 200
 
-@app.route('/profiles/<profile>/settings/columns', methods=['POST'])
+@app.route(f'{PREFIX}/profiles/<profile>/settings/columns', methods=['POST'])
 def profile_columns_route(profile):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -307,7 +308,7 @@ def profile_columns_route(profile):
     return jsonify(settings), 200
 
 
-@app.route('/<profile>')
+@app.route(f'{PREFIX}/<profile>')
 def profile_view(profile):
     profiles = storage.list_profiles()
     if profile not in profiles:
@@ -320,7 +321,7 @@ def profile_view(profile):
         needs_password = True
     return render_template('index.html', categories=categories, profile=profile, profiles=profiles, needs_password=needs_password, root_path=ROOT_PATH)
 
-@app.route('/<profile>/categories', methods=['GET', 'POST'])
+@app.route(f'{PREFIX}/<profile>/categories', methods=['GET', 'POST'])
 def categories_collection(profile):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -353,7 +354,7 @@ def categories_collection(profile):
 
     return jsonify(new_category), 201
 
-@app.route('/<profile>/categories/import', methods=['POST'])
+@app.route(f'{PREFIX}/<profile>/categories/import', methods=['POST'])
 def import_categories(profile):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -400,7 +401,7 @@ def import_categories(profile):
 
     return jsonify({'added': added}), 200
 
-@app.route('/<profile>/categories/export', methods=['GET'])
+@app.route(f'{PREFIX}/<profile>/categories/export', methods=['GET'])
 def export_categories(profile):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -433,7 +434,7 @@ def export_categories(profile):
         headers={'Content-Disposition': f'attachment; filename=\"{filename}\"'}
     )
 
-@app.route('/<profile>/categories/<category_name>', methods=['PATCH', 'DELETE'])
+@app.route(f'{PREFIX}/<profile>/categories/<category_name>', methods=['PATCH', 'DELETE'])
 def category_item(profile, category_name):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -478,7 +479,7 @@ def category_item(profile, category_name):
 
     return jsonify(updated), 200
 
-@app.route('/<profile>/rules', methods=['GET'])
+@app.route(f'{PREFIX}/<profile>/rules', methods=['GET'])
 def get_rules(profile):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -488,7 +489,7 @@ def get_rules(profile):
         return jsonify({'error': str(err)}), 404
     return jsonify(rules)
 
-@app.route('/<profile>/rules', methods=['POST'])
+@app.route(f'{PREFIX}/<profile>/rules', methods=['POST'])
 def create_rule(profile):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -512,7 +513,7 @@ def create_rule(profile):
 
     return jsonify(rule), 201
 
-@app.route('/<profile>/rules/<rule_keyword>', methods=['PATCH', 'DELETE'])
+@app.route(f'{PREFIX}/<profile>/rules/<rule_keyword>', methods=['PATCH', 'DELETE'])
 def rule_item(profile, rule_keyword):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -545,7 +546,7 @@ def rule_item(profile, rule_keyword):
 
     return jsonify(updated), 200
 
-@app.route('/<profile>/upload', methods=['POST'])
+@app.route(f'{PREFIX}/<profile>/upload', methods=['POST'])
 def upload_file(profile):
     if not _ensure_profile_access(profile):
         flash('Unauthorized for this profile.', 'error')

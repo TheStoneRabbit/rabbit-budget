@@ -500,7 +500,7 @@
                             this.value = activeProfile;
                             return;
                         }
-                        fetch(`/profiles`, {
+                        fetch(`${basePath}/profiles`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ name, admin_password: adminPassword })
@@ -520,7 +520,7 @@
                                 throw new Error('Failed to create profile');
                             }
                             const data = await response.json();
-                            window.location.href = '/' + encodeURIComponent(data.name);
+                            window.location.href = `${basePath}/` + encodeURIComponent(data.name);
                         }).catch(err => {
                             console.error(err);
                             alert('Error creating profile.');
@@ -530,7 +530,7 @@
                     }
                     if (selectedProfile) {
                         try {
-                            window.location.href = '/' + selectedProfile;
+                            window.location.href = `${basePath}/` + selectedProfile;
                         } catch (err) {
                             console.error(err);
                             alert('Error loading profile.');
