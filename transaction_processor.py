@@ -5,7 +5,7 @@ import time
 import pandas as pd
 from openai import OpenAI
 
-from storage import NotFoundError, list_categories, list_rules, profile_exists, upsert_rule
+from storage import NotFoundError, list_categories, list_rules, profile_exists, upsert_rule, get_profile_settings
 # === CLEANING ===
 def clean_description(desc):
     if pd.isnull(desc):
@@ -17,11 +17,23 @@ def clean_description(desc):
     desc = desc.replace('\xa0', ' ') # Replace non-breaking space with regular space
     return desc
 
-def clean_citi_csv(input_file):
+def clean_citi_csv(input_file, profile="default"):
+    settings = get_profile_settings(profile)
+    use_custom = settings.get("custom_columns")
+    description_col = settings.get("description_column") or "Description"
+    amount_col = settings.get("amount_column") or "Debit"
+
     df = pd.read_csv(input_file, encoding="utf-8")
-    df = df[pd.to_numeric(df['Debit'], errors='coerce').notnull()]  # keep only debits
-    df['Description'] = df['Description'].apply(clean_description)
-    df['Amount'] = df['Debit'].astype(float)
+    if use_custom:
+        if description_col not in df.columns or amount_col not in df.columns:
+            raise ValueError(f"CSV missing required columns: '{description_col}' and/or '{amount_col}'")
+    else:
+        if "Description" not in df.columns or "Debit" not in df.columns:
+            raise ValueError("CSV missing required columns: 'Description' and/or 'Debit'")
+
+    df = df[pd.to_numeric(df[amount_col], errors='coerce').notnull()]  # keep only debits
+    df['Description'] = df[description_col].apply(clean_description)
+    df['Amount'] = df[amount_col].astype(float)
     cleaned_df = df[['Description', 'Amount']].copy()
     cleaned_df = cleaned_df.reset_index(drop=True)
     return cleaned_df
@@ -113,7 +125,7 @@ def load_category_rules(profile="default"):
 def process_transactions(input_filepath, output_filepath, profile="default"):
     if not profile_exists(profile):
         raise NotFoundError(f"Profile '{profile}' not found.")
-    cleaned_df = clean_citi_csv(input_filepath)
+    cleaned_df = clean_citi_csv(input_filepath, profile=profile)
     print(f"DEBUG: Cleaned DataFrame has {len(cleaned_df)} rows.")
     categorized_df = assign_categories_to_dataframe(cleaned_df, profile)
     categorized_df.to_csv(output_filepath, index=False, encoding="utf-8")

@@ -351,16 +351,27 @@
         </div>
     </div>
 
-    
+
     <div class="container">
         <h2 class="collapsible-header" data-target="settings-content">Settings <span class="collapse-icon">&#9658;</span></h2>
         <div id="settings-content" class="collapsible-content" style="display: none;">
             <div class="settings-item">
                 <label>
                     <input type="checkbox" id="privacy-toggle">
-                    Make Budget Private
+                    Make Account Private
                 </label>
-                <p class="settings-hint">Require a password to view Manage Categories.</p>
+                <p class="settings-hint">Require a password to access this profile and its budget.</p>
+            </div>
+            <div class="settings-item">
+                <label>
+                    <input type="checkbox" id="custom-columns-toggle">
+                    Use custom CSV columns
+                </label>
+                <p class="settings-hint">Default Columns: 'Description' + 'Debit'. When enabled, set your column names below.</p>
+                <label for="description-column">Description column</label>
+                <input type="text" id="description-column" placeholder="Description">
+                <label for="amount-column">Amount column</label>
+                <input type="text" id="amount-column" placeholder="Debit">
             </div>
             <div class="settings-item">
                 <button type="button" id="change-password">Change Password</button>
@@ -384,7 +395,7 @@
         const activeProfile = {{ profile | tojson }};
         let initialCategories = {{ categories | tojson }};
         let initialRules = {};
-        let profileSettings = { is_private: false, has_password: false };
+        let profileSettings = { is_private: false, has_password: false, protect_deletion: false };
         let categoriesUnlocked = true;
         initialCategories = initialCategories.map(cat => ({
             name: cat.name,
@@ -402,6 +413,9 @@
             const downloadCategoriesButton = document.getElementById('download-categories');
             const importCategoriesButton = document.getElementById('import-categories');
             const importFileInput = document.getElementById('import-file');
+            const customColumnsToggle = document.getElementById('custom-columns-toggle');
+            const descriptionColumnInput = document.getElementById('description-column');
+            const amountColumnInput = document.getElementById('amount-column');
             const passwordModal = document.getElementById('password-modal');
             const passwordModalInput = document.getElementById('password-modal-input');
             const passwordModalOk = document.getElementById('password-modal-ok');
@@ -444,7 +458,7 @@
             };
 
             if (profileSelect) {
-                profileSelect.addEventListener('change', function() {
+                profileSelect.addEventListener('change', async function() {
                     const selectedProfile = this.value;
                     if (selectedProfile === '__new__') {
                         const name = prompt('Enter new profile name:');
@@ -475,7 +489,41 @@
                         return;
                     }
                     if (selectedProfile) {
-                        window.location.href = '/' + selectedProfile;
+                        try {
+                            const settingsResp = await fetch(`/profiles/${encodeURIComponent(selectedProfile)}/settings`);
+                            if (!settingsResp.ok) {
+                                throw new Error('Unable to load profile settings.');
+                            }
+                            const settings = await settingsResp.json();
+                            if (settings.is_private) {
+                                const password = await promptPassword(`Enter password for "${selectedProfile}":`);
+                                if (!password) {
+                                    this.value = activeProfile;
+                                    return;
+                                }
+                                const verifyResp = await fetch(`/profiles/${encodeURIComponent(selectedProfile)}/settings/verify`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ password })
+                                });
+                                if (!verifyResp.ok) {
+                                    alert('Incorrect password.');
+                                    this.value = activeProfile;
+                                    return;
+                                }
+                                const verifyData = await verifyResp.json();
+                                if (!verifyData.ok) {
+                                    alert('Incorrect password.');
+                                    this.value = activeProfile;
+                                    return;
+                                }
+                            }
+                            window.location.href = '/' + selectedProfile;
+                        } catch (err) {
+                            console.error(err);
+                            alert('Error loading profile.');
+                            this.value = activeProfile;
+                        }
                     }
                 });
             }
@@ -494,10 +542,20 @@
                     privacyToggle.checked = !!profileSettings.is_private;
                 }
                 if (changePasswordButton) {
-                    changePasswordButton.disabled = !profileSettings.is_private || !profileSettings.has_password;
+                    changePasswordButton.disabled = !profileSettings.has_password;
                 }
                 if (!profileSettings.is_private) {
                     categoriesUnlocked = true;
+                }
+                if (customColumnsToggle) {
+                    customColumnsToggle.checked = !!profileSettings.custom_columns;
+                }
+                if (descriptionColumnInput && amountColumnInput) {
+                    descriptionColumnInput.value = profileSettings.description_column || '';
+                    amountColumnInput.value = profileSettings.amount_column || '';
+                    // Always editable; toggle only controls whether values are used.
+                    descriptionColumnInput.disabled = false;
+                    amountColumnInput.disabled = false;
                 }
             };
 
@@ -516,42 +574,9 @@
                 }
             };
 
-            const verifyCategoriesAccess = async () => {
-                if (!profileSettings.is_private || categoriesUnlocked) {
-                    return true;
-                }
-                const password = await promptPassword('Enter password to view Manage Categories:');
-                if (!password) {
-                    return false;
-                }
-                try {
-                    const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/verify`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ password })
-                    });
-                    if (!response.ok) {
-                        throw new Error('Failed to verify password');
-                    }
-                    const data = await response.json();
-                    if (data.ok) {
-                        categoriesUnlocked = true;
-                        return true;
-                    }
-                    alert('Incorrect password.');
-                    return false;
-                } catch (err) {
-                    console.error(err);
-                    alert('Error verifying password.');
-                    return false;
-                }
-            };
-
             privacyToggle?.addEventListener('change', async function() {
                 if (this.checked) {
-                    const password = await promptPassword('Set a password to protect Manage Categories:');
+                    const password = await promptPassword('Set a password to make this account private:');
                     if (!password) {
                         this.checked = false;
                         return;
@@ -574,7 +599,7 @@
                         profileSettings = await response.json();
                         categoriesUnlocked = false;
                         updateSettingsUI();
-                        alert('Privacy enabled. Manage Categories will require the password.');
+                        alert('Account is now private. Access will require the password.');
                     } catch (err) {
                         console.error(err);
                         alert('Error enabling privacy.');
@@ -586,7 +611,7 @@
                         this.checked = true;
                         return;
                     }
-                    const password = await promptPassword('Enter password to disable privacy:');
+                    const password = await promptPassword('Enter password to make this account public:');
                     if (!password) {
                         this.checked = true;
                         return;
@@ -611,9 +636,49 @@
                 }
             });
 
+            customColumnsToggle?.addEventListener('change', async function() {
+                const enable = this.checked;
+                const desc = descriptionColumnInput?.value || '';
+                const amt = amountColumnInput?.value || '';
+                try {
+                    const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}/settings/columns`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            custom: enable,
+                            description_column: desc,
+                            amount_column: amt
+                        })
+                    });
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({}));
+                        const message = error.error || 'Failed to update column settings.';
+                        throw new Error(message);
+                    }
+                    profileSettings = await response.json();
+                    updateSettingsUI();
+                } catch (err) {
+                    console.error(err);
+                    alert(err.message || 'Error saving column settings.');
+                    this.checked = !enable;
+                }
+            });
+
+            descriptionColumnInput?.addEventListener('blur', () => {
+                if (customColumnsToggle?.checked) {
+                    customColumnsToggle.dispatchEvent(new Event('change'));
+                }
+            });
+
+            amountColumnInput?.addEventListener('blur', () => {
+                if (customColumnsToggle?.checked) {
+                    customColumnsToggle.dispatchEvent(new Event('change'));
+                }
+            });
+
             changePasswordButton?.addEventListener('click', async function() {
-                if (!profileSettings.is_private) {
-                    alert('Enable privacy first.');
+                if (!profileSettings.has_password) {
+                    alert('Set a password first (enable privacy or delete protection).');
                     return;
                 }
                 const oldPassword = await promptPassword('Enter current password:');
@@ -736,17 +801,10 @@
 
             // Collapsible Headers
             document.querySelectorAll('.collapsible-header').forEach(header => {
-                header.addEventListener('click', async function() {
+                header.addEventListener('click', function() {
                     const targetId = this.dataset.target;
                     const targetContent = document.getElementById(targetId);
                     const icon = this.querySelector('.collapse-icon');
-
-                    if (targetId === 'categories-content') {
-                        const ok = await verifyCategoriesAccess();
-                        if (!ok) {
-                            return;
-                        }
-                    }
 
                     if (targetContent.style.display === 'none') {
                         targetContent.style.display = 'block';
@@ -947,9 +1005,21 @@
                     if (!confirmed) {
                         return;
                     }
+                    let password = '';
+                    if (profileSettings.protect_deletion || profileSettings.is_private) {
+                        const provided = await promptPassword('Enter password to delete this profile:');
+                        if (!provided) {
+                            return;
+                        }
+                        password = provided;
+                    }
                     try {
                         const response = await fetch(`/profiles/${encodeURIComponent(activeProfile)}`, {
-                            method: 'DELETE'
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ password })
                         });
                         if (response.status === 404) {
                             alert('Profile not found.');

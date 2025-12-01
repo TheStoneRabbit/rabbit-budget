@@ -4,9 +4,11 @@ Rabbit Budget is a small Flask application that helps categorize credit-card tra
 
 ## Features
 
-- Upload Citi CSV exports; transactions are cleaned, categorized via keyword rules or OpenAI GPT fallback, and the categorized file is emailed to the requester.
+- Upload Citi CSV exports; transactions are cleaned, categorized via keyword rules or OpenAI GPT fallback, and the categorized file is emailed to the requester (attachment name includes profile + timestamp).
 - Maintain category budgets and text-matching rules per profile through either the UI or dedicated CRUD endpoints.
-- Persist profile data in SQLite (seeded from the legacy `profiles/*/*.json` files on first run).
+- Import/export category budgets as CSV (additive import; existing categories are preserved).
+- Optional account-level privacy: require a password to select a profile and view its data; change/delete profile actions also respect the password.
+- Persist profile data in SQLite (seeded from the legacy `profiles/*/*.json` files on first run). A lightweight schema check runs on startup to add missing columns.
 - Background worker thread handles long-running processing and email delivery.
 
 ## Requirements
@@ -105,7 +107,9 @@ Successful uploads redirect back to the profile dashboard. Processing happens on
 
 1. Visit `http://localhost:5001/<profile>` after starting the app.
 2. Upload a Citi CSV and supply the recipient email.
-3. Expand “Manage Categories” or “Manage Category Rules” to edit entries. Press “Save” to sync edits with the database via the new CRUD endpoints.
+3. Expand “Your Budget” (categories) or “Manage Category Rules” to edit entries. Press “Save” to sync edits with the database.
+4. Use “Download CSV” / “Import CSV” in “Your Budget” to export or add budgets in bulk.
+5. In “Settings”, make the account private (sets/uses a password), change the password, or delete the profile (password required when private).
 
 ## Development notes
 

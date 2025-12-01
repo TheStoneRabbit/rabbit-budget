@@ -32,6 +32,8 @@ from storage import (
     create_profile,
     delete_profile,
     get_profile_settings,
+    set_column_settings,
+    set_delete_protection,
     set_profile_privacy,
     verify_profile_password,
 )
@@ -117,6 +119,15 @@ def process_and_email_task(app, input_filepath, output_filepath, email, profile)
             print(f"Successfully processed and sent email to {email}")
         except Exception as e:
             print(f'An error occurred in the background task: {e}')
+            # Notify the user about parse/processing failure
+            try:
+                send_email(
+                    recipient_email=email,
+                    subject="CSV parse error",
+                    body="There was an error parsing the data in the CSV you uploaded. Please double-check the column names and formatting and try again.",
+                )
+            except Exception as notify_err:
+                print(f"Failed to send parse error notification: {notify_err}")
         finally:
             # Clean up uploaded files
             if os.path.exists(input_filepath):
@@ -152,6 +163,15 @@ def create_profile_route():
 
 @app.route('/profiles/<profile>', methods=['DELETE'])
 def delete_profile_route(profile):
+    payload = request.get_json(silent=True) or {}
+    password = payload.get('password')
+    try:
+        settings = get_profile_settings(profile)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    if settings.get('protect_deletion') or settings.get('is_private'):
+        if not password or not verify_profile_password(profile, password):
+            return jsonify({'error': 'Password required or incorrect.'}), 401
     try:
         delete_profile(profile)
     except NotFoundError as err:
@@ -204,6 +224,33 @@ def profile_verify_password_route(profile):
     except NotFoundError as err:
         return jsonify({'error': str(err)}), 404
     return jsonify({'ok': bool(ok)}), 200
+
+@app.route('/profiles/<profile>/settings/protect-deletion', methods=['POST'])
+def profile_protect_deletion_route(profile):
+    payload = request.get_json(silent=True) or {}
+    protect = bool(payload.get('protect', False))
+    password = payload.get('password')
+    try:
+        settings = set_delete_protection(profile, protect, password)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+    return jsonify(settings), 200
+
+@app.route('/profiles/<profile>/settings/columns', methods=['POST'])
+def profile_columns_route(profile):
+    payload = request.get_json(silent=True) or {}
+    custom = bool(payload.get('custom', False))
+    description_column = payload.get('description_column')
+    amount_column = payload.get('amount_column')
+    try:
+        settings = set_column_settings(profile, custom, description_column, amount_column)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+    return jsonify(settings), 200
 
 
 @app.route('/<profile>')

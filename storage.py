@@ -77,6 +77,10 @@ class ProfileSetting(Base):
     profile_id = Column(Integer, ForeignKey("profiles.id"), nullable=False, unique=True)
     is_private = Column(Boolean, default=False)
     password_hash = Column(String(255), nullable=True)
+    protect_deletion = Column(Boolean, default=False)
+    custom_columns = Column(Boolean, default=False)
+    description_column = Column(String(255), nullable=True)
+    amount_column = Column(String(255), nullable=True)
 
     profile = relationship("Profile", back_populates="settings")
 
@@ -97,7 +101,26 @@ def session_scope():
 def init_db() -> None:
     """Create tables and bootstrap data from legacy JSON if present."""
     Base.metadata.create_all(bind=engine)
+    _ensure_schema()
     _bootstrap_from_json()
+
+def _ensure_schema() -> None:
+    """Lightweight migration: add columns if missing (SQLite friendly)."""
+    with engine.connect() as conn:
+        # Add protect_deletion column if missing
+        columns = {row._mapping["name"] for row in conn.exec_driver_sql("PRAGMA table_info(profile_settings)")}
+        if "protect_deletion" not in columns:
+            conn.exec_driver_sql("ALTER TABLE profile_settings ADD COLUMN protect_deletion BOOLEAN DEFAULT 0")
+            conn.commit()
+        if "custom_columns" not in columns:
+            conn.exec_driver_sql("ALTER TABLE profile_settings ADD COLUMN custom_columns BOOLEAN DEFAULT 0")
+            conn.commit()
+        if "description_column" not in columns:
+            conn.exec_driver_sql("ALTER TABLE profile_settings ADD COLUMN description_column VARCHAR(255)")
+            conn.commit()
+        if "amount_column" not in columns:
+            conn.exec_driver_sql("ALTER TABLE profile_settings ADD COLUMN amount_column VARCHAR(255)")
+            conn.commit()
 
 def create_profile(name: str) -> Dict[str, str]:
     normalized = (name or "").strip()
@@ -144,7 +167,15 @@ def _ensure_settings(session, profile_id: int) -> ProfileSetting:
         .one_or_none()
     )
     if settings is None:
-        settings = ProfileSetting(profile_id=profile_id, is_private=False, password_hash=None)
+        settings = ProfileSetting(
+            profile_id=profile_id,
+            is_private=False,
+            password_hash=None,
+            protect_deletion=False,
+            custom_columns=False,
+            description_column=None,
+            amount_column=None,
+        )
         session.add(settings)
         session.flush()
     return settings
@@ -157,6 +188,10 @@ def get_profile_settings(profile_name: str) -> Dict[str, Optional[bool]]:
         return {
             "is_private": bool(settings.is_private),
             "has_password": bool(settings.password_hash),
+            "protect_deletion": bool(settings.protect_deletion),
+            "custom_columns": bool(settings.custom_columns),
+            "description_column": settings.description_column,
+            "amount_column": settings.amount_column,
         }
 
 
@@ -174,11 +209,19 @@ def set_profile_privacy(profile_name: str, is_private: bool, password: Optional[
             if settings.password_hash and not check_password_hash(settings.password_hash, password or ""):
                 raise ValueError("Current password is incorrect.")
             settings.is_private = False
-            settings.password_hash = None
+            if not settings.protect_deletion:
+                settings.password_hash = None
 
         session.add(settings)
         session.flush()
-        return {"is_private": bool(settings.is_private), "has_password": bool(settings.password_hash)}
+        return {
+            "is_private": bool(settings.is_private),
+            "has_password": bool(settings.password_hash),
+            "protect_deletion": bool(settings.protect_deletion),
+            "custom_columns": bool(settings.custom_columns),
+            "description_column": settings.description_column,
+            "amount_column": settings.amount_column,
+        }
 
 
 def change_profile_password(profile_name: str, old_password: str, new_password: str) -> None:
@@ -187,8 +230,8 @@ def change_profile_password(profile_name: str, old_password: str, new_password: 
     with session_scope() as session:
         profile = _require_profile(session, profile_name)
         settings = _ensure_settings(session, profile.id)
-        if not settings.password_hash or not settings.is_private:
-            raise ValueError("Privacy is not enabled for this profile.")
+        if not settings.password_hash:
+            raise ValueError("No password is set for this profile.")
         if not old_password or not check_password_hash(settings.password_hash, old_password):
             raise ValueError("Current password is incorrect.")
         settings.password_hash = generate_password_hash(new_password)
@@ -205,6 +248,69 @@ def verify_profile_password(profile_name: str, password: str) -> bool:
         if not password:
             return False
         return check_password_hash(settings.password_hash, password)
+
+
+def set_delete_protection(profile_name: str, protect: bool, password: Optional[str]) -> Dict[str, bool]:
+    with session_scope() as session:
+        profile = _require_profile(session, profile_name)
+        settings = _ensure_settings(session, profile.id)
+
+        if protect:
+            if settings.password_hash:
+                if not password or not check_password_hash(settings.password_hash, password):
+                    raise ValueError("Current password is incorrect.")
+            else:
+                if not password:
+                    raise ValueError("Password is required to enable delete protection.")
+                settings.password_hash = generate_password_hash(password)
+            settings.protect_deletion = True
+        else:
+            if settings.password_hash and not check_password_hash(settings.password_hash, password or ""):
+                raise ValueError("Current password is incorrect.")
+            settings.protect_deletion = False
+            if not settings.is_private:
+                settings.password_hash = None
+
+        session.add(settings)
+        session.flush()
+        return {
+            "is_private": bool(settings.is_private),
+            "has_password": bool(settings.password_hash),
+            "protect_deletion": bool(settings.protect_deletion),
+            "custom_columns": bool(settings.custom_columns),
+            "description_column": settings.description_column,
+            "amount_column": settings.amount_column,
+        }
+
+
+def set_column_settings(profile_name: str, custom: bool, description_column: Optional[str], amount_column: Optional[str]) -> Dict[str, Optional[str]]:
+    with session_scope() as session:
+        profile = _require_profile(session, profile_name)
+        settings = _ensure_settings(session, profile.id)
+
+        if custom:
+            desc = (description_column or "").strip()
+            amt = (amount_column or "").strip()
+            if not desc or not amt:
+                raise ValueError("Both description and amount column names are required when custom columns are enabled.")
+            settings.custom_columns = True
+            settings.description_column = desc
+            settings.amount_column = amt
+        else:
+            settings.custom_columns = False
+            settings.description_column = None
+            settings.amount_column = None
+
+        session.add(settings)
+        session.flush()
+        return {
+            "is_private": bool(settings.is_private),
+            "has_password": bool(settings.password_hash),
+            "protect_deletion": bool(settings.protect_deletion),
+            "custom_columns": bool(settings.custom_columns),
+            "description_column": settings.description_column,
+            "amount_column": settings.amount_column,
+        }
 
 
 def _bootstrap_from_json(base_path: str = "profiles") -> None:
