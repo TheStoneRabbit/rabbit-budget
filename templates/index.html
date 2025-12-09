@@ -1104,7 +1104,7 @@
                 document.querySelectorAll('.rule-item').forEach(item => {
                     const keywordField = item.querySelector('input[name="rule-keyword"]');
                     const categoryField = item.querySelector('input[name="rule-category"]');
-                    const keyword = keywordField.value.trim();
+                    const keyword = keywordField.value.trim().replace(/\//g, '%2F');
                     const category = categoryField.value.trim();
                     if (keyword) {
                         rules[keyword.toUpperCase()] = category;
@@ -1133,7 +1133,7 @@
                     }
 
                     for (const key of toUpdate) {
-                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/rules/${encodeURIComponent(key)}`, {
+                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/rules/${key}`, {
                             method: 'PATCH',
                             headers: {
                                 'Content-Type': 'application/json'

@@ -517,7 +517,7 @@ def create_rule(profile):
 def rule_item(profile, rule_keyword):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
-    decoded_keyword = unquote(rule_keyword).upper()
+    decoded_keyword = unquote(rule_keyword).replace('%2F', '/').upper()
 
     if request.method == 'DELETE':
         try:
