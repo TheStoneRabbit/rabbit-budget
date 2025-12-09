@@ -513,6 +513,41 @@ def create_rule(profile):
 
     return jsonify(rule), 201
 
+@app.route(f'{PREFIX}/<profile>/rules', methods=['PATCH', 'DELETE'])
+def rule_collection_modify(profile):
+    if not _ensure_profile_access(profile):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if request.method == 'DELETE':
+        keyword = (request.args.get('keyword') or '').strip().upper()
+        if not keyword:
+            payload = request.get_json(silent=True) or {}
+            keyword = (payload.get('keyword') or '').strip().upper()
+        if not keyword:
+            return jsonify({'error': 'Rule keyword is required.'}), 400
+        try:
+            storage.delete_rule(profile, keyword)
+        except NotFoundError as err:
+            return jsonify({'error': str(err)}), 404
+        return '', 204
+
+    payload = request.get_json(silent=True) or {}
+    keyword = (payload.get('keyword') or '').strip().upper()
+    category = (payload.get('category') or '').strip()
+    if not keyword:
+        return jsonify({'error': 'Rule keyword is required.'}), 400
+    if not category:
+        return jsonify({'error': 'Rule category is required.'}), 400
+    try:
+        updated = storage.update_rule(profile, keyword, keyword, category)
+    except NotFoundError as err:
+        return jsonify({'error': str(err)}), 404
+    except ConflictError as err:
+        return jsonify({'error': str(err)}), 409
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+    return jsonify(updated), 200
+
 @app.route(f'{PREFIX}/<profile>/rules/<path:rule_keyword>', methods=['PATCH', 'DELETE'])
 def rule_item(profile, rule_keyword):
     if not _ensure_profile_access(profile):

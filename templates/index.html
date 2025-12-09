@@ -1124,7 +1124,7 @@
 
                 try {
                     for (const key of toDelete) {
-                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/rules/${encodeURIComponent(key)}`, {
+                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/rules?keyword=${encodeURIComponent(key)}`, {
                             method: 'DELETE'
                         });
                         if (!response.ok && response.status !== 204) {
@@ -1133,7 +1133,7 @@
                     }
 
                     for (const key of toUpdate) {
-                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/rules/${encodeURIComponent(key)}`, {
+                        const response = await fetch(`${basePath}/${encodeURIComponent(activeProfile)}/rules`, {
                             method: 'PATCH',
                             headers: {
                                 'Content-Type': 'application/json'
