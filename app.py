@@ -513,7 +513,7 @@ def create_rule(profile):
 
     return jsonify(rule), 201
 
-@app.route(f'{PREFIX}/<profile>/rules/<rule_keyword>', methods=['PATCH', 'DELETE'])
+@app.route(f'{PREFIX}/<profile>/rules/<path:rule_keyword>', methods=['PATCH', 'DELETE'])
 def rule_item(profile, rule_keyword):
     if not _ensure_profile_access(profile):
         return jsonify({'error': 'Unauthorized'}), 401
